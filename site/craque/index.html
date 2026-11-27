@@ -958,15 +958,26 @@ window.IMAGENS = IMAGENS;
 function imagemPronta(nome) { var i = IMAGENS[nome]; return i && i.complete && i.naturalWidth > 0 ? i : null; }
 
 var app = {
-  tela: 'inicio', dificuldade: 'amador', mudo: false, jogo: null, pose: null,
+  tela: 'inicio', dificuldade: 'amador', mudo: false, jogo: null, pose: null, fase: 1, tempoFase1: null,
   fimEm: 0, banner: null, tremor: 0, particulas: [], alvos: [], t: 0,
   recorde: null, novoRecorde: false, popups: [], dashAntes: false,
   dicas: { chute: false, drible: false, especial: false }, dica: null,
 };
 
 // ----- guardar recorde (pode não funcionar em aba anônima; tudo bem) -----
-function lerRecorde(dif) { try { var v = localStorage.getItem('craque-recorde-' + dif); return v ? parseFloat(v) : null; } catch (e) { return null; } }
-function salvarRecorde(dif, t) { try { localStorage.setItem('craque-recorde-' + dif, String(t)); } catch (e) { /* sem problema */ } }
+function chaveRecorde(dif, fase) { return 'craque-recorde-' + dif + (fase === 2 ? '-f2' : ''); }
+function lerRecorde(dif, fase) { try { var v = localStorage.getItem(chaveRecorde(dif, fase)); return v ? parseFloat(v) : null; } catch (e) { return null; } }
+function salvarRecorde(dif, t, fase) { try { localStorage.setItem(chaveRecorde(dif, fase), String(t)); } catch (e) { /* sem problema */ } }
+// Fase 2 liberada? (guardado no aparelho; se não der para guardar, vale enquanto o jogo está aberto)
+var fasesNaMemoria = { 1: true };
+function faseLiberada(fase) {
+  if (fasesNaMemoria[fase]) return true;
+  try { return localStorage.getItem('craque-fase' + fase) === '1'; } catch (e) { return false; }
+}
+function liberarFase(fase) {
+  fasesNaMemoria[fase] = true;
+  try { localStorage.setItem('craque-fase' + fase, '1'); } catch (e) { /* fica só na memória */ }
+}
 function relogio(seg) { var m = Math.floor(seg / 60), s = Math.floor(seg % 60); return m + ':' + (s < 10 ? '0' : '') + s; }
 
 // =================================================================
@@ -1112,10 +1123,13 @@ function tocarMenu(x, y) {
 // FLUXO DAS TELAS
 // =================================================================
 function novoJogo() {
-  app.jogo = criarJogo(app.dificuldade);
+  if (app.fase === 1) app.tempoFase1 = null;
+  app.jogo = criarJogo(app.dificuldade, undefined, app.fase);
   app.tela = 'luta'; app.fimEm = 0; app.particulas = []; app.popups = []; app.novoRecorde = false; app.dica = null;
   toques.clear();
-  app.banner = { texto: 'PRIMEIRO TEMPO!', sub: 'Derrube o Juiz Apitão!', t: 1.8, total: 1.8 };
+  app.banner = app.fase === 2
+    ? { texto: 'FASE 2!', sub: 'Derrube o Goleirão Bigodão!', t: 2, total: 2 }
+    : { texto: 'PRIMEIRO TEMPO!', sub: 'Derrube o Juiz Apitão!', t: 1.8, total: 1.8 };
   som('nivel');
   telaCheia();
 }
@@ -1127,7 +1141,12 @@ function continuar() {
   if (H > W * 1.05) return;               // ainda em pé
   app.tela = 'luta'; app.jogo.pausado = false; toques.clear();
 }
-function irMenu() { app.tela = 'inicio'; app.jogo = null; toques.clear(); }
+function irMenu() { app.tela = 'inicio'; app.jogo = null; app.pose = null; toques.clear(); }
+function proximaFase() { app.tempoFase1 = app.jogo ? app.jogo.tempo : null; app.fase = 2; app.pose = null; novoJogo(); }
+function escolherFase(f) {
+  if (!faseLiberada(f)) { app.avisoMenu = { texto: 'Vença o Juiz Apitão para liberar a Fase 2!', t: 2.2 }; som('dano'); return; }
+  app.fase = f; app.pose = null;
+}
 function alternarSom() { app.mudo = !app.mudo; if (mestre) mestre.gain.value = app.mudo ? 0 : 0.5; }
 
 function telaCheia() {
@@ -1235,10 +1254,22 @@ function processarEventos() {
     }
     if (ev === 'nivel') {
       app.tremor = 0.5;
+      var subs = j.tipo === 'goleiro'
+        ? ['O goleirão armou a barreira!', 'A careca está brilhando!']
+        : ['O juiz ficou vermelho de raiva!', 'Chegou o VAR!'];
       app.banner = j.nivel === 1
-        ? { texto: 'SEGUNDO TEMPO!', sub: 'O juiz ficou vermelho de raiva!', t: 1.8, total: 1.8 }
-        : { texto: 'PRORROGAÇÃO!', sub: 'Chegou o VAR!', t: 1.8, total: 1.8 };
+        ? { texto: 'SEGUNDO TEMPO!', sub: subs[0], t: 1.8, total: 1.8 }
+        : { texto: 'PRORROGAÇÃO!', sub: subs[1], t: 1.8, total: 1.8 };
     }
+    if (ev === 'defendeu') {
+      var cxd = caixaChefe(j);
+      app.popups.push({ texto: 'DEFENDEU!', x: cxd.x - 10, y: jogo.craque.y - 10, t: 0.6, total: 0.6, tam: 24, cor: '#c6ff00' });
+    }
+    if (ev === 'preso') {
+      var cp = jogo.craque;
+      app.popups.push({ texto: 'PRESO!', sub: 'Toque nos botões!', x: cp.x + cp.w / 2, y: cp.y - 30, t: 1.4, total: 1.4, tam: 30, cor: '#ff7043' });
+    }
+    if (ev === 'solto') { var cs2 = jogo.craque; app.popups.push({ texto: 'LIVRE!', x: cs2.x + cs2.w / 2, y: cs2.y - 20, t: 0.7, total: 0.7, tam: 24 }); }
     if (ev === 'ole') {
       var cc = jogo.craque;
       app.popups.push({ texto: 'OLÉ!', sub: '+ energia ⚡', x: cc.x + cc.w / 2, y: cc.y - 20, t: 1.1, total: 1.1, tam: 34 });
@@ -1270,6 +1301,7 @@ function atualizarEfeitos(dt) {
   app.tremor = Math.max(0, app.tremor - dt);
   app.zoom = Math.max(0, (app.zoom || 0) - dt * 0.5);
   if (app.banner) { app.banner.t -= dt; if (app.banner.t <= 0) app.banner = null; }
+  if (app.avisoMenu) { app.avisoMenu.t -= dt; if (app.avisoMenu.t <= 0) app.avisoMenu = null; }
   for (var q = app.popups.length - 1; q >= 0; q--) { app.popups[q].t -= dt; if (app.popups[q].t <= 0) app.popups.splice(q, 1); }
   if (app.dica && app.tela === 'luta') { app.dica.t -= dt; if (app.dica.t <= 0) app.dica = null; }
   for (var i = app.particulas.length - 1; i >= 0; i--) {
@@ -1288,9 +1320,10 @@ function checarFim(dt) {
   if (app.fimEm > (jogo.estado === 'vitoria' ? 1.8 : 1.4)) {
     app.tela = jogo.estado;
     if (jogo.estado === 'vitoria') {
-      var antigo = lerRecorde(jogo.dificuldade);
+      if (jogo.fase === 1) liberarFase(2); else app.tela = 'campeao';
+      var antigo = lerRecorde(jogo.dificuldade, jogo.fase);
       app.novoRecorde = antigo === null || jogo.tempo < antigo;
-      if (app.novoRecorde) salvarRecorde(jogo.dificuldade, jogo.tempo);
+      if (app.novoRecorde) salvarRecorde(jogo.dificuldade, jogo.tempo, jogo.fase);
       app.recorde = app.novoRecorde ? jogo.tempo : antigo;
       for (var q = 0; q < 80; q++) confete();
     }
@@ -2102,6 +2135,8 @@ function coracao(x, y, s, cheio) {
   ctx.restore();
 }
 
+var NOMES_NIVEL = ['1º TEMPO', '2º TEMPO', 'PRORROGAÇÃO'];
+function hudTexto(jogo) { return 'FASE ' + jogo.fase + ' · NÍVEL ' + jogo.chefe.nivel + ' – ' + NOMES_NIVEL[jogo.chefe.nivel - 1]; }
 function desenharHUD(jogo, t) {
   var c = jogo.craque, max = AJUSTES.dificuldades[jogo.dificuldade].coracoes;
   ctx.fillStyle = 'rgba(11,18,48,0.72)'; rr(12, 10, 30 + max * 30, 78, 14); ctx.fill();
@@ -2124,7 +2159,10 @@ function desenharHUD(jogo, t) {
   var j = jogo.chefe, bx = 300, bw = 360;
   ctx.fillStyle = 'rgba(11,18,48,0.78)'; rr(bx - 56, 6, bw + 70, 54, 14); ctx.fill();
   texto(CHEFOES[jogo.fase].nome, bx, 21, 15, '#ffffff', 'left');
-  texto(['1º TEMPO', '2º TEMPO', 'PRORROGAÇÃO'][j.nivel - 1], bx + bw, 21, 14, '#ffd600', 'right');
+  var rotulo = hudTexto(jogo);
+  ctx.font = '900 13px ' + FONTE; var lr = ctx.measureText(rotulo).width + 24;
+  preencher(caixaArredondada(LARG / 2 - lr / 2 + 18, 62, lr, 22, 11), 'rgba(11,18,48,0.78)');
+  texto(rotulo, LARG / 2 + 18, 73.5, 13, '#ffd600', 'center');
   parte('M' + (bx + 8) + ',32 L' + (bx + bw - 8) + ',32 C' + (bx + bw - 3) + ',32 ' + (bx + bw) + ',35 ' + (bx + bw) + ',40 C' + (bx + bw) + ',45 ' + (bx + bw - 3) + ',48 ' + (bx + bw - 8) + ',48 L' + (bx + 8) + ',48 C' + (bx + 3) + ',48 ' + bx + ',45 ' + bx + ',40 C' + bx + ',35 ' + (bx + 3) + ',32 ' + (bx + 8) + ',32 Z', '#1d1530', { linha: 2.5 });
   var frac = j.vida / j.vidaMax, larg = Math.max(10, bw * frac);
   var gv = ctx.createLinearGradient(0, 32, 0, 48); gv.addColorStop(0, j.piscar > 0 ? '#ffffff' : '#ff6fa3'); gv.addColorStop(1, j.piscar > 0 ? '#ffe0ec' : '#c2185b');
@@ -2471,7 +2509,7 @@ function desenharCena(jogo, t) {
   var j = jogo.chefe;
   if (jogo.atk && jogo.atk.tv) ARTE.tvVar(t);
   jogo.perigos.forEach(function (p) { if (p.tipo === 'spray' || p.tipo === 'sombra' || p.tipo === 'mira') ARTE.perigo(p, t, jogo); });
-  ARTE.juiz(j, jogo, t);
+  (ARTE[j.tipo] || ARTE.juiz)(j, jogo, t);
   jogo.inimigos.forEach(function (b) { ARTE.bandeirinha(b, t); });
   var c = jogo.craque;
   if (c.dashTempo > 0) {
@@ -2485,10 +2523,10 @@ function desenharCena(jogo, t) {
 
 // Cena parada da tela de início
 function criarPose() {
-  var j = criarJogo('amador', function () { return 0.3; });
+  var j = criarJogo('amador', function () { return 0.3; }, app.fase);
   var c = j.craque;
   c.x = 210; c.y = CHAO - 70; c.noChao = true; c.estado = 'parado'; c.recargaChute = AJUSTES.craque.cadenciaChute;
-  j.chefe.estado = 'aviso'; j.chefe.ataqueAtual = 'amarelo';
+  j.chefe.estado = 'aviso'; j.chefe.ataqueAtual = app.fase === 2 ? 'luva' : 'amarelo';
   [[330, 0], [450, 0], [570, 0]].forEach(function (b) { j.chutes.push({ x: b[0], y: c.y + 32, vx: 800, vy: 0, r: 8, dano: 0 }); });
   j.perigos.push({ tipo: 'amarelo', x: 600, y: 230, w: 26, h: 18, giro: 0.6 });
   j.perigos.push({ tipo: 'amarelo', x: 520, y: 270, w: 26, h: 18, giro: 2.1 });
@@ -2529,10 +2567,11 @@ function painel(x, y, w, h) {
 }
 
 // Logo do jogo
-function logo(cx, cy, larguraMax) {
+function logo(cx, cy, larguraMax, rival) {
+  rival = rival || 'JUIZ APITÃO';
   ctx.save();
   ctx.font = '900 66px ' + FONTE; var wC = ctx.measureText('CRAQUE').width;
-  ctx.font = '900 52px ' + FONTE; var wJ = ctx.measureText('JUIZ APITÃO').width;
+  ctx.font = '900 52px ' + FONTE; var wJ = ctx.measureText(rival).width;
   var total = wC + 90 + wJ, s = Math.min(1, larguraMax / total);
   ctx.translate(cx, cy); ctx.scale(s, s);
   var x0 = -total / 2;
@@ -2551,7 +2590,7 @@ function logo(cx, cy, larguraMax) {
   parte('M0,-32 L9,-12 L31,-14 L15,2 L24,24 L2,14 L-16,28 L-12,6 L-30,-8 L-8,-12 Z', '#e53935', { brilho: oval(-6, -10, 10, 6), linha: 4 });
   texto('VS', 0, 2, 22, '#ffffff', 'center', TINTA);
   ctx.restore();
-  palavra('JUIZ APITÃO', x0 + wC + 90 + wJ / 2, 52, '#ffc1dc', '#ec407a', 0.04);
+  palavra(rival, x0 + wC + 90 + wJ / 2, 52, rival === 'JUIZ APITÃO' ? '#ffc1dc' : '#f4ff81', rival === 'JUIZ APITÃO' ? '#ec407a' : '#7cb342', 0.04);
   ctx.restore();
 }
 
@@ -2559,19 +2598,33 @@ function telaInicio(t) {
   var fundoTopo = ctx.createLinearGradient(0, 0, 0, 220);
   fundoTopo.addColorStop(0, 'rgba(8,15,46,0.85)'); fundoTopo.addColorStop(1, 'rgba(8,15,46,0)');
   ctx.fillStyle = fundoTopo; ctx.fillRect(0, 0, LARG, 220);
-  logo(LARG / 2, 62, 820);
-  texto('Vença o juiz em 3 tempos!', LARG / 2, 116, 21, '#ffffff', 'center', TINTA);
+  logo(LARG / 2, 62, 840, CHEFOES[app.fase].nome);
+  texto('Vença os chefões, fase por fase!', LARG / 2, 112, 20, '#ffffff', 'center', TINTA);
+  // fases
+  var f2 = faseLiberada(2);
+  botaoMenu('fase1', 276, 134, 196, 60, 'FASE 1', app.fase === 1 ? '#ef4f8c' : '#4a5470', function () { escolherFase(1); }, { marcado: app.fase === 1, tam: 20, sub: 'Juiz Apitão' });
+  botaoMenu('fase2', 488, 134, 196, 60, 'FASE 2', app.fase === 2 ? '#7cb342' : f2 ? '#4a5470' : '#2c3350', function () { escolherFase(2); }, { marcado: app.fase === 2, tam: 20, sub: f2 ? 'Goleirão Bigodão' : 'Trancada', corTexto: f2 ? '#ffffff' : '#8e99c0' });
+  if (!f2) {   // cadeado
+    linha('M654,146 L654,140 C654,130 670,130 670,140 L670,146', '#ffd600', 3.5);
+    parte('M650,146 L674,146 L674,164 L650,164 Z', '#ffd600', { linha: 2.5 });
+    preencher(oval(662, 154, 2.5, 2.5), TINTA);
+  }
+  // dificuldade
   var ama = app.dificuldade === 'amador';
-  var max = function (d) { return AJUSTES.dificuldades[d].coracoes + ' corações'; };
-  botaoMenu('amador', 296, 146, 176, 64, 'AMADOR', ama ? '#2fa64a' : '#4a5470', function () { app.dificuldade = 'amador'; }, { marcado: ama, tam: 22, sub: max('amador') });
-  botaoMenu('profissional', 488, 146, 176, 64, 'PROFISSIONAL', !ama ? '#d32f2f' : '#4a5470', function () { app.dificuldade = 'profissional'; }, { marcado: !ama, tam: 18, sub: max('profissional') });
+  var max = function (d) { return AJUSTES.dificuldades[d].coracoes + ' ♥'; };
+  botaoMenu('amador', 316, 208, 156, 42, 'AMADOR ' + max('amador'), ama ? '#2fa64a' : '#4a5470', function () { app.dificuldade = 'amador'; }, { marcado: ama, tam: 15 });
+  botaoMenu('profissional', 488, 208, 156, 42, 'PROFISSIONAL ' + max('profissional'), !ama ? '#d32f2f' : '#4a5470', function () { app.dificuldade = 'profissional'; }, { marcado: !ama, tam: 13 });
   var pulso = 1 + Math.sin(t * 5) * 0.03;
-  ctx.save(); ctx.translate(LARG / 2, 266); ctx.scale(pulso, pulso); ctx.translate(-LARG / 2, -266);
-  botaoMenu('jogar', 360, 230, 240, 74, 'JOGAR', '#ffc400', novoJogo, { tam: 40, corTexto: '#3e2400', contorno: '#fff59d', principal: true });
+  ctx.save(); ctx.translate(LARG / 2, 302); ctx.scale(pulso, pulso); ctx.translate(-LARG / 2, -302);
+  botaoMenu('jogar', 370, 268, 220, 68, 'JOGAR', '#ffc400', novoJogo, { tam: 38, corTexto: '#3e2400', contorno: '#fff59d', principal: true });
   ctx.restore();
-  botaoMenu('ajuda', 390, 322, 180, 46, 'COMO JOGAR', '#1e88e5', function () { app.tela = 'ajuda'; }, { tam: 18 });
-  var rec = lerRecorde(app.dificuldade);
-  if (rec !== null) texto('Recorde neste aparelho: ' + relogio(rec), LARG / 2, 388, 16, '#ffffff', 'center', TINTA, 800);
+  botaoMenu('ajuda', 395, 352, 170, 42, 'COMO JOGAR', '#1e88e5', function () { app.tela = 'ajuda'; }, { tam: 16 });
+  var rec = lerRecorde(app.dificuldade, app.fase);
+  if (rec !== null) texto('Recorde da Fase ' + app.fase + ' neste aparelho: ' + relogio(rec), LARG / 2, 412, 15, '#ffffff', 'center', TINTA, 800);
+  if (app.avisoMenu) {
+    preencher(caixaArredondada(LARG / 2 - 230, 426, 460, 36, 12), 'rgba(213,0,0,0.92)');
+    texto(app.avisoMenu.texto, LARG / 2, 444, 16, '#ffffff', 'center', null, 800);
+  }
 }
 
 // Quebra um texto em linhas que cabem na largura
@@ -2628,18 +2681,48 @@ function telaPausa() {
 function telaVitoria(t) {
   var jogo = app.jogo;
   ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, LARG, ALT);
-  painel(230, 40, 500, 460);
-  texto('GOOOL!', LARG / 2, 100, 68, '#ffd600', 'center', '#1b1b1b');
-  texto('Você venceu o Juiz Apitão!', LARG / 2, 152, 24, '#ffffff', 'center', null);
+  painel(230, 30, 500, 476);
+  texto('GOOOL!', LARG / 2, 90, 68, '#ffd600', 'center', '#1b1b1b');
+  texto('Você venceu o Juiz Apitão!', LARG / 2, 142, 24, '#ffffff', 'center', null);
   var nota = notaFinal(jogo), cores = { S: '#ffd600', A: '#66bb6a', B: '#42a5f5', C: '#ff7043' };
   circulo(370, 236, 50, cores[nota]); texto(nota, 370, 240, 58, '#1b1b1b');
   texto('NOTA', 370, 302, 15, '#c5cae9', 'center', null, 700);
   texto('Tempo: ' + relogio(jogo.tempo), 450, 206, 22, '#ffffff', 'left');
   texto('Dano levado: ' + jogo.danoLevado, 450, 240, 22, '#ffffff', 'left');
   texto(app.novoRecorde ? 'NOVO RECORDE!' : app.recorde !== null ? 'Recorde: ' + relogio(app.recorde) : '', 450, 274, 20, app.novoRecorde ? '#ffd600' : '#c5cae9', 'left');
-  texto(app.dificuldade === 'amador' ? 'Agora tente no Profissional!' : 'Lenda do futebol!', LARG / 2, 340, 18, '#ffffff', 'center', null, 700);
-  botaoMenu('denovo', 260, 380, 240, 66, 'JOGAR DE NOVO', '#2e9e44', novoJogo, { tam: 22, principal: true });
-  botaoMenu('menu', 520, 380, 180, 66, 'MENU', '#546e7a', irMenu, { tam: 22 });
+  texto('O Goleirão Bigodão está esperando na Fase 2!', LARG / 2, 330, 18, '#ffffff', 'center', null, 700);
+  botaoMenu('proxima', 300, 358, 360, 66, 'PRÓXIMA FASE  ▶', '#ffc400', proximaFase, { tam: 26, corTexto: '#3e2400', contorno: '#fff59d', principal: true });
+  botaoMenu('denovo', 300, 436, 170, 46, 'JOGAR DE NOVO', '#2e9e44', novoJogo, { tam: 15 });
+  botaoMenu('menu', 490, 436, 170, 46, 'MENU', '#546e7a', irMenu, { tam: 16 });
+}
+
+function taca(x, y, s, t) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  var brilho = ctx.createRadialGradient(0, -20, 10, 0, -20, 110);
+  brilho.addColorStop(0, 'rgba(255,236,120,0.55)'); brilho.addColorStop(1, 'rgba(255,236,120,0)');
+  ctx.fillStyle = brilho; ctx.fillRect(-110, -130, 220, 220);
+  var ouro = ctx.createLinearGradient(-40, 0, 40, 0); ouro.addColorStop(0, '#ffb300'); ouro.addColorStop(0.45, '#ffe57f'); ouro.addColorStop(1, '#ff8f00');
+  parte('M-34,-70 L34,-70 C34,-30 22,-8 8,0 L8,16 L22,26 L22,36 L-22,36 L-22,26 L-8,16 L-8,0 C-22,-8 -34,-30 -34,-70 Z', ouro, { brilho: 'M-26,-66 L-14,-66 C-14,-40 -10,-22 -2,-10 C-16,-18 -26,-38 -26,-66 Z', linha: 3 });
+  linha('M-34,-60 C-56,-60 -56,-28 -26,-24 M34,-60 C56,-60 56,-28 26,-24', '#ffb300', 6);
+  parte('M-30,36 L30,36 L34,52 L-34,52 Z', '#5d4037', { linha: 3 });
+  parte('M-0,-58 L4,-48 L15,-48 L6,-41 L9,-30 L0,-37 L-9,-30 L-6,-41 L-15,-48 L-4,-48 Z', '#fff8e1', { linha: 0 });
+  ctx.restore();
+}
+
+function telaCampeao(t) {
+  var jogo = app.jogo;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, 0, LARG, ALT);
+  painel(200, 24, 560, 492);
+  taca(LARG / 2, 140, 1 + Math.sin(t * 3) * 0.03, t);
+  texto('CAMPEÃO!', LARG / 2, 228, 58, '#ffd600', 'center', '#1b1b1b');
+  texto('Você venceu o Goleirão Bigodão!', LARG / 2, 272, 22, '#ffffff', 'center', null);
+  var nota = notaFinal(jogo), cores = { S: '#ffd600', A: '#66bb6a', B: '#42a5f5', C: '#ff7043' };
+  circulo(340, 334, 36, cores[nota]); texto(nota, 340, 337, 42, '#1b1b1b');
+  texto('Tempo da Fase 2: ' + relogio(jogo.tempo), 395, 316, 18, '#ffffff', 'left');
+  if (app.tempoFase1 !== null) texto('Tempo total: ' + relogio(app.tempoFase1 + jogo.tempo), 395, 342, 18, '#ffffff', 'left');
+  texto(app.novoRecorde ? 'NOVO RECORDE!' : app.recorde !== null ? 'Recorde: ' + relogio(app.recorde) : '', 395, 368, 16, app.novoRecorde ? '#ffd600' : '#c5cae9', 'left');
+  botaoMenu('denovo', 270, 410, 220, 60, 'JOGAR DE NOVO', '#2e9e44', novoJogo, { tam: 20, principal: true });
+  botaoMenu('menu', 510, 410, 180, 60, 'MENU', '#546e7a', irMenu, { tam: 20 });
 }
 
 function telaDerrota(t) {
@@ -2692,7 +2775,9 @@ function verificarDicas(jogo) {
   var d = app.dicas;
   if (app.dica) return;
   if (!d.chute && jogo.tempo > 0.8) { d.chute = true; app.dica = { botao: 'chute', texto: 'Segure CHUTE para chutar no juiz! (tecla Z)', t: 4.5 }; }
-  else if (!d.drible && d.chute && jogo.chefe.estado === 'aviso') { d.drible = true; app.dica = { botao: 'dash', texto: 'Vem ataque! Aperte DRIBLE para atravessar sem se machucar. (tecla C)', t: 5.5 }; }
+  else if (!d.drible && d.chute && jogo.chefe.estado === 'aviso' && jogo.tempo > 3) { d.drible = true; app.dica = { botao: 'dash', texto: 'Vem ataque! Aperte DRIBLE para atravessar sem se machucar. (tecla C)', t: 5.5 }; }
+  else if (!d.rede && jogo.craque.presoTempo > 0) { d.rede = true; app.dica = { botao: 'chute', texto: 'Preso na rede! Toque nos botões para se soltar!', t: 2.5 }; }
+  else if (!d.defesa && jogo.chefe.defendendo) { d.defesa = true; app.dica = { botao: 'especial', texto: 'Ele está defendendo! A Bomba de Ouro fura a defesa. (tecla V)', t: 4 }; }
   else if (!d.especial && jogo.craque.especial >= AJUSTES.craque.segmentosEspecial) { d.especial = true; app.dica = { botao: 'especial', texto: 'Barra ⚡ cheia! Aperte ESPECIAL! (tecla V)', t: 4.5 }; }
 }
 
@@ -2819,6 +2904,7 @@ function desenhar() {
     emMundo();
     if (app.tela === 'pausa') telaPausa();
     if (app.tela === 'vitoria') telaVitoria(t);
+    if (app.tela === 'campeao') { telaCampeao(t); desenharParticulas(); }
     if (app.tela === 'derrota') telaDerrota(t);
   }
 }
@@ -2852,6 +2938,8 @@ function quadro(agora) {
 window.__app = app;
 Object.defineProperty(window, '__jogo', { get: function () { return app.jogo; } });
 window.__controle = lerControle;
+window.__faseLiberada = faseLiberada;
+window.__hudTexto = function () { return app.jogo ? hudTexto(app.jogo) : ''; };
 window.__ctrl = function () { return CTRL; };
 window.__alvos = function () {
   return app.alvos.map(function (a) { return { nome: a.nome, x: OX + (a.x + a.w / 2) * ESC, y: OY + (a.y + a.h / 2) * ESC }; });

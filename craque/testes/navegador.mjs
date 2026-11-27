@@ -152,6 +152,47 @@ try {
   ok(await p2.evaluate(() => window.__app.tela) === 'vitoria', 'vitória aparece mesmo sem localStorage');
   await p2.screenshot({ path: prints + '9-vitoria.png' });
 
+  // ----- Fase 2: progresso, menu e telas -----
+  const p5 = await abrir(browser);
+  ok(await p5.evaluate(() => window.__faseLiberada(2)) === false, 'Fase 2 começa trancada');
+  const f2 = await alvo(p5, 'fase2');
+  await p5.touchscreen.tap(f2.x, f2.y); await espera(100);
+  ok(await p5.evaluate(() => window.__app.fase) === 1, 'tocar na Fase 2 trancada não troca de fase');
+  await p5.keyboard.press('Enter'); await espera(100);
+  async function vencer(pg) {
+    await pg.evaluate(() => { const j = window.__jogo.chefe; j.nivel = 3; j.vida = 2; j.estado = 'respiro'; j.t = 5; window.__jogo.craque.coracoes = 99; });
+    await pg.keyboard.down('z'); await espera(2600); await pg.keyboard.up('z');
+  }
+  await vencer(p5);
+  ok(await p5.evaluate(() => window.__app.tela) === 'vitoria', 'venceu a Fase 1');
+  ok(await p5.evaluate(() => window.__faseLiberada(2)) === true, 'vencer o juiz libera a Fase 2');
+  const prox = await alvo(p5, 'proxima');
+  await p5.touchscreen.tap(prox.x, prox.y); await espera(150);
+  ok(await p5.evaluate(() => window.__app.tela === 'luta' && window.__jogo.fase === 2 && window.__jogo.chefe.tipo === 'goleiro'), 'PRÓXIMA FASE começa o Goleirão');
+  ok(await p5.evaluate(() => window.__jogo.craque.coracoes === 5 && window.__jogo.dificuldade === 'amador'), 'Fase 2 com corações cheios e mesma dificuldade');
+  ok(await p5.evaluate(() => window.__hudTexto()) === 'FASE 2 · NÍVEL 1 – 1º TEMPO', 'HUD mostra fase e nível');
+  await espera(1500);
+  await p5.screenshot({ path: prints + '10-fase2.png' });
+  await p5.evaluate(() => { const j = window.__jogo; j.craque.coracoes = 1; j.craque.invencivel = 0; j.perigos.push({ tipo: 'amarelo', x: j.craque.x, y: j.craque.y + 10, w: 26, h: 18, vx: 0, vy: 0 }); });
+  await espera(2200);
+  ok(await p5.evaluate(() => window.__app.tela) === 'derrota', 'derrota na Fase 2');
+  const dn = await alvo(p5, 'denovo');
+  await p5.touchscreen.tap(dn.x, dn.y); await espera(150);
+  ok(await p5.evaluate(() => window.__app.tela === 'luta' && window.__jogo.fase === 2 && window.__jogo.craque.coracoes === 5), 'Tentar de novo recomeça só a Fase 2');
+  await vencer(p5);
+  ok(await p5.evaluate(() => window.__app.tela) === 'campeao', 'vencer o Goleirão mostra a tela de campeão');
+  await p5.screenshot({ path: prints + '11-campeao.png' });
+  const mn = await alvo(p5, 'menu');
+  await p5.touchscreen.tap(mn.x, mn.y); await espera(150);
+  const f2b = await alvo(p5, 'fase2');
+  await p5.touchscreen.tap(f2b.x, f2b.y); await espera(100);
+  ok(await p5.evaluate(() => window.__app.fase) === 2, 'no menu dá para escolher a Fase 2 liberada');
+  await p5.screenshot({ path: prints + '12-menu-fase2.png' });
+  // sem armazenamento (aba anônima): a liberação vale enquanto o jogo está aberto
+  const prox2 = await alvo(p2, 'proxima');
+  await p2.touchscreen.tap(prox2.x, prox2.y); await espera(150);
+  ok(await p2.evaluate(() => window.__jogo && window.__jogo.fase === 2 && window.__faseLiberada(2)), 'sem armazenamento, a Fase 2 ainda é liberada');
+
   // app instalável: manifesto, ícones e service worker
   const p3 = await abrir(browser);
   const manifesto = await p3.evaluate(async () => (await fetch(document.querySelector('link[rel=manifest]').href)).json());
