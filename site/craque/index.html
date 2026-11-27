@@ -121,7 +121,8 @@ function criarCraque(dificuldade) {
     coracoes: AJUSTES.dificuldades[dificuldade].coracoes,
     invencivel: 0, dashTempo: 0, dashRecarga: 0, dashDir: 1, recargaChute: 0,
     especial: 0, acertosAcum: 0, estado: 'parado',
-    antes: { pulo: false, dash: false, especial: false },  // para saber quando o botão "acabou de ser apertado"
+    antes: { pulo: false, dash: false, especial: false, chute: false },
+    presoTempo: 0, presoToques: 0, soltou: false,   // rede-arapuca  // para saber quando o botão "acabou de ser apertado"
   };
 }
 
@@ -158,6 +159,19 @@ function atualizarCraque(c, controle, dt, saida) {
   c.invencivel = Math.max(0, c.invencivel - dt);
   c.dashRecarga = Math.max(0, c.dashRecarga - dt);
   c.recargaChute = Math.max(0, c.recargaChute - dt);
+
+  // Preso na rede: só dá para tocar nos botões para se soltar (4 toques) ou esperar
+  if (c.presoTempo > 0) {
+    ['chute', 'pulo', 'dash', 'especial'].forEach(function (b) { if (apertou(b)) c.presoToques += 1; });
+    c.presoTempo = Math.max(0, c.presoTempo - dt);
+    if (c.presoToques >= 4 || c.presoTempo <= 0) { c.presoTempo = 0; c.presoToques = 0; c.soltou = true; }
+    c.vx = 0; c.dashTempo = 0; c.agachado = false;
+    c.vy += AJUSTES.gravidade * dt; c.y += c.vy * dt;
+    if (c.y + c.h >= AJUSTES.chao) { c.y = AJUSTES.chao - c.h; c.vy = 0; c.noChao = true; }
+    c.estado = 'preso';
+    c.antes.pulo = controle.pulo; c.antes.dash = controle.dash; c.antes.especial = controle.especial; c.antes.chute = controle.chute;
+    return;
+  }
 
   // Drible (dash)
   if (apertou('dash') && c.dashTempo <= 0 && c.dashRecarga <= 0) {
@@ -218,7 +232,7 @@ function atualizarCraque(c, controle, dt, saida) {
     c.especial = 0; c.acertosAcum = 0;
   }
 
-  c.antes.pulo = controle.pulo; c.antes.dash = controle.dash; c.antes.especial = controle.especial;
+  c.antes.pulo = controle.pulo; c.antes.dash = controle.dash; c.antes.especial = controle.especial; c.antes.chute = controle.chute;
 }
 
 // ---------------------------------------------------------------
@@ -234,12 +248,23 @@ var CHEFOES = {
       3: { var: 3, chuva: 2, apitacoDuplo: 2, amarelo: 1 },
     },
   },
+  2: {
+    tipo: 'goleiro', nome: 'GOLEIRÃO BIGODÃO', vida: function () { return AJUSTES.goleiro.vida; },
+    respiro: [1.3, 0.45, 0.25],   // descanso entre ataques em cada nível (o goleiro fica mais rápido)
+    ataquesPorNivel: {
+      1: { luva: 3, tiroDeMeta: 2, defesa: 2 },
+      2: { barreira: 2, rede: 2, sacoDeBolas: 2, luvaDupla: 2 },
+      3: { careca: 3, defesaDupla: 2, tiroDeMetaDuplo: 2, sacoDeBolasRapido: 1 },
+    },
+  },
 };
 
 // Tempo de aviso (em segundos) antes de cada ataque. Nunca menos que AJUSTES.chefe.avisoMin.
 var AVISO_BASE = {
   amarelo: 0.7, apitaco: 0.8, corrida: 0.9, spray: 0.8, bandeirinhas: 0.7,
   vermelho: 0.8, var: 1.0, chuva: 0.7, apitacoDuplo: 0.8,
+  luva: 0.8, luvaDupla: 0.8, tiroDeMeta: 0.8, tiroDeMetaDuplo: 0.8, defesa: 0.7, defesaDupla: 0.7,
+  barreira: 0.7, rede: 0.9, sacoDeBolas: 0.7, sacoDeBolasRapido: 0.7, careca: 1.0,
 };
 
 var ATAQUES = {};   // todos os ataques de todos os chefões (definidos mais abaixo)
@@ -283,6 +308,7 @@ function ferirChefe(c, dano) {
 function ataqueAindaEmCampo(nome, jogo) {
   if (nome === 'bandeirinhas') return jogo.inimigos.some(function (i) { return i.tipo === 'bandeirinha'; });
   if (nome === 'vermelho') return jogo.perigos.some(function (p) { return p.tipo === 'vermelho'; });
+  if (nome === 'barreira') return jogo.inimigos.some(function (i) { return i.tipo === 'barreira'; });
   return false;
 }
 
@@ -302,7 +328,8 @@ function escolherAtaque(c, jogo) {
 }
 
 function tempoRespiro(c) {
-  return AJUSTES.chefe.respiro[c.nivel - 1] * AJUSTES.dificuldades[c.dificuldade].multRespiro;
+  var r = CHEFOES[c.fase].respiro || AJUSTES.chefe.respiro;
+  return r[c.nivel - 1] * AJUSTES.dificuldades[c.dificuldade].multRespiro;
 }
 
 function tempoAviso(c, nome) {
@@ -327,8 +354,10 @@ function atualizarChefe(c, dt, jogo) {
     c.nivel += 1; c.ultimoAtaque = null;
     c.estado = 'respiro'; c.t = tempoRespiro(c);
   } else if (c.estado === 'respiro' && c.t <= 0) {
+    if (jogo && jogo.craque && jogo.craque.presoTempo > 0) return;   // espera o Craque sair da rede
     c.ataqueAtual = escolherAtaque(c, jogo);
     c.estado = 'aviso'; c.t = tempoAviso(c, c.ataqueAtual);
+    if (ATAQUES[c.ataqueAtual].preparar) ATAQUES[c.ataqueAtual].preparar(jogo);
   } else if (c.estado === 'aviso' && c.t <= 0) {
     c.estado = 'ataque'; c.t = 0;
     ATAQUES[c.ataqueAtual].iniciar(jogo);
@@ -530,6 +559,183 @@ ATAQUES.chuva = {
   atualizar: function (jogo, dt) { return rodarAgenda(jogo, dt) >= jogo.atk.fim; },
 };
 
+// ----- Os poderes do Goleirão Bigodão (Fase 2) -----
+// Luva bumerangue: alta = agache; baixa = pule. Vai até o outro lado e volta.
+function novaLuva(jogo, alta, rapidez) {
+  var m = velChefe(jogo) * (rapidez || 1), y = alta ? AJUSTES.chao - 100 : AJUSTES.chao - 40;
+  return { tipo: 'luva', alta: alta, x: CHEFE_X - 40, y: y, w: 40, h: alta ? 40 : 36,
+           vx: -760 * m, vy: 0, ax: 412 * m * m, volta: true, giro: 0 };
+}
+// Tiro de meta: bola que vai quicando pelo gramado. Mira para um quique cair onde o Craque está.
+function novoTiroDeMeta(jogo) {
+  var m = velChefe(jogo), alvo = centro(jogo.craque).x, melhor = 260 * m, menor = 1e9;
+  for (var v = 200 * m; v <= 340 * m; v += 10 * m) {
+    // simula a bola para ver onde ela quica com essa velocidade
+    var x = CHEFE_X + 10, y = AJUSTES.chao - 60, vy = -820, quiques = 0;
+    for (var i = 0; i < 400 && quiques < 3; i++) {
+      vy += 1400 * PASSO; x -= v * PASSO; y += vy * PASSO;
+      if (y > AJUSTES.chao - 14 && vy > 0) {
+        y = AJUSTES.chao - 14; vy = -vy * 0.72; quiques++;
+        if (Math.abs(x - alvo) < menor) { menor = Math.abs(x - alvo); melhor = v; }
+      }
+    }
+  }
+  return { tipo: 'bolaQuica', x: CHEFE_X + 10, y: AJUSTES.chao - 60, r: 14,
+           vx: -melhor, vy: -820, g: 1400, rest: 0.72, quiques: 0 };
+}
+// Rebote: bola de fogo que quica entre o alto da tela e o chão
+// Mira para a bola encostar no chão onde o Craque está.
+function novoFogo(jogo) {
+  var m = velChefe(jogo), vy = 560 * m, x0 = CHEFE_X - 10, y0 = AJUSTES.chao - 80;
+  var desce = (AJUSTES.chao - 16 - y0) / vy, ciclo = 2 * (AJUSTES.chao - 16 - 166) / vy;
+  var dist = x0 - centro(jogo.craque).x, vx = 300 * m;
+  for (var k = 0; k < 4; k++) {
+    var v = dist / (desce + k * ciclo);
+    if (v >= 220 * m && v <= 420 * m) { vx = v; break; }
+  }
+  return { tipo: 'fogo', x: x0, y: y0, r: 16, vx: -vx, vy: vy, bate: [150, AJUSTES.chao] };
+}
+// Careca reluzente: mancha de luz que corre pelo chão (o raio no ar é só desenho)
+function novaLuzChao(jogo) {
+  return { tipo: 'luzChao', x: CHEFE_X - 70, y: AJUSTES.chao - 50, w: 70, h: 50, vx: -540 * velChefe(jogo), vy: 0, vira: true, volta: true };
+}
+function temPerigo(jogo, tipo) { return jogo.perigos.some(function (p) { return p.tipo === tipo; }); }
+
+function ataqueLuva(dupla) {
+  return {
+    preparar: function (jogo) { jogo.chefe.preparo = { alta: jogo.chefe.aleatorio() < 0.5 }; },
+    iniciar: function (jogo) {
+      comecarAtaque(jogo);
+      var alta = jogo.chefe.preparo ? jogo.chefe.preparo.alta : true, k = dupla ? 1.3 : 1;
+      jogo.perigos.push(novaLuva(jogo, alta, k)); jogo.eventos.push('lanca');
+      if (dupla) agendar(jogo, 0.5, function () { jogo.perigos.push(novaLuva(jogo, !alta, k)); jogo.eventos.push('lanca'); });
+    },
+    atualizar: function (jogo, dt) {
+      var t = rodarAgenda(jogo, dt);
+      // luva simples: espera voltar. Luva dupla: acaba quando as luvas fazem a curva (elas continuam voando)
+      var voando = jogo.perigos.some(function (p) { return p.tipo === 'luva' && (!dupla || p.vx < 0); });
+      return (t > 0.6 && !voando) || t > 7.5;
+    },
+  };
+}
+ATAQUES.luva = ataqueLuva(false);
+ATAQUES.luvaDupla = ataqueLuva(true);
+
+function ataqueTiroDeMeta(duplo) {
+  return {
+    iniciar: function (jogo) {
+      comecarAtaque(jogo);
+      jogo.perigos.push(novoTiroDeMeta(jogo)); jogo.eventos.push('chuteGoleiro');
+      if (duplo) agendar(jogo, 0.6, function () { jogo.perigos.push(novoTiroDeMeta(jogo)); jogo.eventos.push('chuteGoleiro'); });
+    },
+    atualizar: function (jogo, dt) {
+      var t = rodarAgenda(jogo, dt);
+      return (t > 1 && !temPerigo(jogo, 'bolaQuica')) || t > 7.5;
+    },
+  };
+}
+ATAQUES.tiroDeMeta = ataqueTiroDeMeta(false);
+ATAQUES.tiroDeMetaDuplo = ataqueTiroDeMeta(true);
+
+// Defesa: segura os chutes por 2 s (a Bomba de Ouro fura) e devolve bola de fogo
+function ataqueDefesa(fogos) {
+  return {
+    iniciar: function (jogo) {
+      comecarAtaque(jogo);
+      jogo.chefe.defendendo = true; jogo.eventos.push('defesa');
+      agendar(jogo, 2.0, function () { jogo.chefe.defendendo = false; });
+      for (var k = 0; k < fogos; k++) agendar(jogo, 2.0 + k * 0.5, function () { jogo.perigos.push(novoFogo(jogo)); jogo.eventos.push('fogo'); });
+    },
+    atualizar: function (jogo, dt) { return rodarAgenda(jogo, dt) >= 2.0 + fogos * 0.5 + 0.2; },
+  };
+}
+ATAQUES.defesa = ataqueDefesa(1);
+ATAQUES.defesaDupla = ataqueDefesa(2);
+
+// Barreira: 3 jogadores de papelão que seguram os chutes (caem com 4)
+ATAQUES.barreira = {
+  iniciar: function (jogo) {
+    comecarAtaque(jogo);
+    if (!ataqueAindaEmCampo('barreira', jogo)) {
+      [300, 420, 540].forEach(function (x) {
+        jogo.inimigos.push({ tipo: 'barreira', x: x, y: AJUSTES.chao - 92, w: 46, h: 92, vida: 4, tempo: 8, piscar: 0, lado: -1, t: 0, levantando: 0 });
+      });
+    }
+    jogo.eventos.push('apito');
+  },
+  atualizar: function (jogo, dt) { return rodarAgenda(jogo, dt) >= 0.8; },
+};
+
+// Rede-arapuca: a sombra segue o Craque, para, e a rede cai
+ATAQUES.rede = {
+  iniciar: function (jogo) {
+    comecarAtaque(jogo);
+    var r = { tipo: 'rede', inativo: true, x: centro(jogo.craque).x - 55, y: AJUSTES.chao - 6, w: 110, h: 6, etapa: 'mira', t: 0, queda: 0, prendeu: false };
+    jogo.perigos.push(r); jogo.atk.rede = r; jogo.eventos.push('lanca');
+  },
+  atualizar: function (jogo, dt) {
+    var r = jogo.atk.rede, c = jogo.craque;
+    if (!r) return true;
+    r.t += dt;
+    if (r.etapa === 'mira') {
+      r.x = limitar(centro(c).x - 55, 0, CHEFE_X - 110);
+      if (r.t >= 0.6 * multAvisoDe(jogo)) { r.etapa = 'parada'; r.t = 0; }
+    } else if (r.etapa === 'parada') {
+      if (r.t >= 0.35) { r.etapa = 'caindo'; r.t = 0; jogo.eventos.push('rede'); }
+    } else if (r.etapa === 'caindo') {
+      r.queda = Math.min(1, r.t / 0.3);
+      if (r.queda >= 1) {
+        r.etapa = 'caiu'; r.t = 0;
+        var cx = caixaCraque(c);
+        if (cx.x + cx.w > r.x && cx.x < r.x + r.w && c.y + c.h > AJUSTES.chao - 120) {
+          c.presoTempo = 2; c.presoToques = 0; r.prendeu = true; jogo.eventos.push('preso');
+        }
+      }
+    } else if (r.t >= 0.5) {
+      var i = jogo.perigos.indexOf(r); if (i >= 0) jogo.perigos.splice(i, 1);
+      jogo.atk.rede = null;
+      return true;
+    }
+    return false;
+  },
+};
+
+// Saco de bolas: bolas caem do alto (com sombra antes), quicam uma vez e somem
+function ataqueSacoDeBolas(n, intervalo, vel) {
+  return {
+    iniciar: function (jogo) {
+      comecarAtaque(jogo);
+      var c = jogo.chefe, aviso = 0.6 * multAvisoDe(jogo);
+      var xs = [];
+      for (var i = 0; i < n; i++) xs.push(40 + (i + c.aleatorio()) * (CHEFE_X - 80) / n);
+      xs.forEach(function (xSorteado, k) {
+        var x = xSorteado;
+        agendar(jogo, k * intervalo, function () {
+          if (k % 3 === 0) x = limitar(centro(jogo.craque).x, 20, CHEFE_X - 20);   // de 3 em 3, mira onde o Craque está
+          jogo.perigos.push({ tipo: 'sombra', inativo: true, x: x - 16, y: AJUSTES.chao - 6, w: 32, h: 6, vx: 0, vy: 0, tempo: aviso + 0.6 });
+        });
+        agendar(jogo, k * intervalo + aviso, function () {
+          jogo.perigos.push({ tipo: 'bolaCai', x: x, y: -20, r: 12, vx: 0, vy: vel, g: 900, rest: 0.5, quiques: 0, maxQuiques: 1 });
+        });
+      });
+      jogo.atk.fim = (n - 1) * intervalo + aviso + 1.2;
+      jogo.eventos.push('lanca');
+    },
+    atualizar: function (jogo, dt) { return rodarAgenda(jogo, dt) >= jogo.atk.fim; },
+  };
+}
+ATAQUES.sacoDeBolas = ataqueSacoDeBolas(8, 0.18, 650);
+ATAQUES.sacoDeBolasRapido = ataqueSacoDeBolas(10, 0.13, 820);
+
+// Careca reluzente: o holofote bate na careca e a mancha de luz vai e volta pelo chão
+ATAQUES.careca = {
+  iniciar: function (jogo) { comecarAtaque(jogo); jogo.perigos.push(novaLuzChao(jogo)); jogo.eventos.push('brilho'); },
+  atualizar: function (jogo, dt) {
+    var t = rodarAgenda(jogo, dt);
+    return (t > 0.5 && !temPerigo(jogo, 'luzChao')) || t > 7.5;
+  },
+};
+
 // ----- Movimento dos perigos e das bandeirinhas -----
 function foraDaTela(o) {
   var w = o.r ? o.r : o.w, h = o.r ? o.r : o.h;
@@ -546,9 +752,25 @@ function atualizarPerigos(jogo, dt) {
       p.vx = dx / n * p.persegue; p.vy = dy / n * p.persegue;
     }
     if (p.piscar) p.piscar = Math.max(0, p.piscar - dt);
+    if (p.ax) p.vx += p.ax * dt;                 // luva bumerangue freia e volta
+    if (p.g) p.vy += p.g * dt;                   // bolas com gravidade
     p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
     if (p.giro !== undefined) p.giro += dt * 12;
     var some = false;
+    if (p.g) {                                   // quica no gramado
+      var fundo = AJUSTES.chao - (p.r || p.h);
+      if (p.y > fundo && p.vy > 0) {
+        p.y = fundo; p.quiques = (p.quiques || 0) + 1;
+        if (p.maxQuiques !== undefined && p.quiques > p.maxQuiques) some = true;
+        else { p.vy = -p.vy * p.rest; jogo.eventos.push('quique'); }
+      }
+    }
+    if (p.bate) {                                // bola de fogo: quica entre o alto e o chão
+      if (p.y - p.r < p.bate[0] && p.vy < 0) p.vy = -p.vy;
+      if (p.y + p.r > p.bate[1] && p.vy > 0) p.vy = -p.vy;
+    }
+    if (p.vira && p.vx < 0 && p.x < 0) p.vx = -p.vx;         // mancha de luz bate na parede e volta
+    if (p.volta && p.vx > 0 && p.x > CHEFE_X) some = true;  // voltou para o goleiro
     if (p.tempo !== undefined) { p.tempo -= dt; if (p.tempo <= 0) some = true; }
     if (p.cai && p.y + p.h >= AJUSTES.chao) { some = true; jogo.eventos.push('pof'); }
     if (some || foraDaTela(p)) ps.splice(i, 1);
@@ -558,6 +780,7 @@ function atualizarPerigos(jogo, dt) {
     var b = ins[k];
     b.tempo -= dt; b.piscar = Math.max(0, b.piscar - dt);
     if (b.tempo <= 0) { ins.splice(k, 1); continue; }
+    if (b.tipo !== 'bandeirinha') continue;     // a barreira de papelão só fica parada
     if (b.levantando > 0) {
       b.levantando -= dt;
       if (b.levantando <= 0) {
@@ -607,6 +830,9 @@ function atualizarChutes(jogo, dt) {
       }
     }
 
+    if (!remover && colideCircRet(ch, caixaChefe(j)) && j.estado !== 'derrotado' && j.defendendo && !ch.especial) {
+      remover = true; jogo.eventos.push('defendeu');     // o goleiro segurou! (a Bomba de Ouro fura)
+    }
     if (!remover && colideCircRet(ch, caixaChefe(j)) && j.estado !== 'derrotado') {
       remover = true;
       var aplicado = ferirChefe(j, ch.dano);
@@ -649,6 +875,7 @@ function subpasso(jogo, controle) {
 
   var antes = jogo.chutes.length, especialAntes = c.especial;
   atualizarCraque(c, controle, PASSO, { chutes: jogo.chutes });
+  if (c.soltou) { c.soltou = false; jogo.eventos.push('solto'); }
   if (jogo.chutes.length > antes) jogo.eventos.push(c.especial < especialAntes ? 'especial' : 'chute');
 
   atualizarChefe(j, PASSO, jogo);
@@ -659,6 +886,7 @@ function subpasso(jogo, controle) {
   if (j.estado === 'transicao' && !jogo.emTransicao) {
     jogo.emTransicao = true;
     jogo.perigos.length = 0; jogo.inimigos.length = 0; jogo.atk = { t: 0, agenda: [] };
+    if (c.presoTempo > 0) { c.presoTempo = 0; c.presoToques = 0; }
     jogo.eventos.push('nivel');
     // intervalo: um golinho de água devolve corações (no Amador)
     var dif = AJUSTES.dificuldades[jogo.dificuldade], max = dif.coracoes;
