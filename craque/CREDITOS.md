@@ -8,7 +8,7 @@ Os personagens, partículas, lua e nuvens vêm de pacotes gratuitos do **Kenney*
 | Particle Pack | fumaça, terra, estrelas, faíscas, anéis, fogo e redemoinho |
 | Background Elements Remastered | lua e nuvens |
 
-O estádio, os cartões, a bola, o VAR, o spray e os botões são desenhados no próprio código.
+O estádio, os cartões, a bola, o VAR, o spray e os botões são desenhados no próprio código. O **Goleirão Bigodão** (Fase 2) também é desenhado em código, imitando o estilo dos personagens do Kenney, porque as partes soltas do pacote são pequenas demais para um chefão gigante.
 
 ## Como refazer a folha de sprites
 1. `craque/ferramentas/baixar_kenney.sh toon-characters` (e o mesmo para `particle-pack` e `background-elements-remastered`), numa pasta de trabalho. Depois descompacte cada `pacote.zip` em `pacotes/<nome>/x/`.

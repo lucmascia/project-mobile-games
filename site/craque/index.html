@@ -1222,6 +1222,15 @@ var SONS = {
     ruido(2.2, 0.25, 900, 0.9);
   },
   derrota: function () { apito(0.7); tom(440, 0.7, 'triangle', 0.12, 160, 0.3); },
+  defendeu: function () { tom(260, 0.08, 'square', 0.1, 130); ruido(0.08, 0.2, 700); },
+  defesa: function () { tom(180, 0.2, 'sine', 0.2, 120); },
+  preso: function () { ruido(0.35, 0.2, 2200); tom(500, 0.3, 'sawtooth', 0.08, 200); },
+  solto: function () { tom(600, 0.15, 'sine', 0.12, 1200); },
+  brilho: function () { tom(2400, 0.4, 'sine', 0.1); tom(3200, 0.3, 'sine', 0.06, 0, 0.12); },
+  fogo: function () { ruido(0.45, 0.2, 600); },
+  quique: function () { tom(170, 0.05, 'sine', 0.1, 90); },
+  rede: function () { ruido(0.35, 0.15, 2600); },
+  chuteGoleiro: function () { tom(150, 0.1, 'sine', 0.3, 60); ruido(0.06, 0.15, 1200); },
   drible: function () { ruido(0.18, 0.16, 1800); tom(500, 0.15, 'sine', 0.08, 900); },
   ole: function () { ruido(0.9, 0.22, 800); tom(660, 0.12, 'square', 0.06); tom(880, 0.2, 'square', 0.06, 0, 0.1); },
   cura: function () { [523, 659, 784].forEach(function (f, i) { tom(f, 0.18, 'sine', 0.12, 0, i * 0.09); }); },
@@ -1455,18 +1464,25 @@ function torcedor(x, y, s, camisa, pele, r) {
   ctx.restore();
 }
 
-function desenharCenario(g) {
+function desenharCenario(g, fase) {
   var salvo = ctx; ctx = g;
   var s = 12345;
   function r() { s = s * 16807 % 2147483647; return (s - 1) / 2147483646; }
 
   // céu
   var ceu = ctx.createLinearGradient(0, 0, 0, 260);
-  ceu.addColorStop(0, '#080f2e'); ceu.addColorStop(0.7, '#1c3270'); ceu.addColorStop(1, '#3a5cb0');
+  if (fase === 2) { ceu.addColorStop(0, '#2a1650'); ceu.addColorStop(0.55, '#a13e6e'); ceu.addColorStop(1, '#ff9a4d'); }   // entardecer
+  else { ceu.addColorStop(0, '#080f2e'); ceu.addColorStop(0.7, '#1c3270'); ceu.addColorStop(1, '#3a5cb0'); }
   ctx.fillStyle = ceu; ctx.fillRect(0, 0, LARG, 300);
   for (var i = 0; i < 60; i++) { ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + r() * 0.6) + ')'; ctx.fillRect(r() * LARG, r() * 110, 1.6, 1.6); }
+  if (fase === 2) {   // sol se pondo atrás do estádio
+    var sol = ctx.createRadialGradient(640, 132, 10, 640, 132, 150);
+    sol.addColorStop(0, 'rgba(255,236,179,1)'); sol.addColorStop(0.25, 'rgba(255,204,128,0.9)'); sol.addColorStop(1, 'rgba(255,138,80,0)');
+    ctx.fillStyle = sol; ctx.fillRect(490, 0, 300, 290);
+    preencher(oval(640, 132, 46, 46), '#fff3c4');
+  }
   if (SPR.pronto) {
-    var lua = SPR.q.ceu.moonFull; ctx.globalAlpha = 0.95; ctx.drawImage(lua.c, 300, 18, 64, 64);
+    var lua = SPR.q.ceu.moonFull; ctx.globalAlpha = fase === 2 ? 0 : 0.95; ctx.drawImage(lua.c, 300, 18, 64, 64);
     [['cloud1', 120, 70, 0.35], ['cloud3', 520, 40, 0.3], ['cloud6', 760, 88, 0.25]].forEach(function (n) {
       var q = SPR.q.ceu[n[0]]; ctx.globalAlpha = n[3]; ctx.drawImage(q.c, n[1], n[2], q.c.width * 0.8, q.c.height * 0.8);
     });
@@ -1571,6 +1587,16 @@ function desenharCenario(g) {
   ctx.restore();
   parte('M40,300 L52,300 L52,454 L40,454 Z M-10,298 L52,298 L52,308 L-10,308 Z', '#ffffff', { sombraX: 47, linha: 2 });
 
+  if (fase === 2) {   // gol atrás do goleiro
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(914, 306); ctx.lineTo(960, 306); ctx.lineTo(960, 452); ctx.lineTo(914, 452); ctx.closePath(); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+    for (var n2 = -12; n2 < 20; n2++) { ctx.beginPath(); ctx.moveTo(914 + n2 * 9, 306); ctx.quadraticCurveTo(894 + n2 * 9, 380, 912 + n2 * 9, 452); ctx.stroke(); }
+    for (var m2 = 0; m2 < 16; m2++) { ctx.beginPath(); ctx.moveTo(914, 310 + m2 * 9.5); ctx.quadraticCurveTo(936, 314 + m2 * 9.5, 960, 310 + m2 * 9.5); ctx.stroke(); }
+    ctx.restore();
+    parte('M908,300 L920,300 L920,454 L908,454 Z M908,298 L970,298 L970,308 L908,308 Z', '#ffffff', { sombraX: 915, linha: 2 });
+    ctx.fillStyle = 'rgba(255,120,60,0.10)'; ctx.fillRect(0, 0, LARG, ALT);   // luz alaranjada
+  }
   // vinheta
   var vin = ctx.createRadialGradient(LARG / 2, ALT / 2, 300, LARG / 2, ALT / 2, 640);
   vin.addColorStop(0, 'rgba(0,0,0,0)'); vin.addColorStop(1, 'rgba(0,0,0,0.35)');
@@ -1578,13 +1604,16 @@ function desenharCenario(g) {
   ctx = salvo;
 }
 
+var faseDoFundo = 0;
 function garantirFundo() {
-  if (fundo) return;
+  var fase = app.jogo ? app.jogo.fase : app.fase;
+  if (fundo && faseDoFundo === fase) return;
+  faseDoFundo = fase;
   fundo = document.createElement('canvas');
   var k = ESC * DPR;
   fundo.width = Math.max(1, Math.round(LARG * k)); fundo.height = Math.max(1, Math.round(ALT * k));
   var g = fundo.getContext('2d'); g.setTransform(k, 0, 0, k, 0, 0);
-  desenharCenario(g);
+  desenharCenario(g, fase);
 }
 
 // =================================================================
@@ -2105,6 +2134,14 @@ ARTE.perigo = function (p, t, jogo) {
     case 'bola':
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 4, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,23,68,0.35)'; ctx.fill();
       bola(p.x, p.y, p.r, t * 8); break;
+    case 'luva': arteLuva(p, t); break;
+    case 'bolaQuica': case 'bolaCai':
+      sombraBola(p); bola(p.x, p.y, p.r, p.x * 0.05);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 3, 0, Math.PI * 2); ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,23,68,0.6)'; ctx.stroke();
+      break;
+    case 'fogo': arteFogo(p, t); break;
+    case 'rede': arteRede(p, t); break;
+    case 'luzChao': arteLuz(p, t, jogo); break;
   }
 };
 
@@ -2169,8 +2206,13 @@ function desenharHUD(jogo, t) {
   ctx.fillStyle = gv; rr(bx + 2, 34, larg - 4, 12, 6); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.35)'; rr(bx + 6, 35, Math.max(0, larg - 12), 3, 2); ctx.fill();
   [0.6, 0.25].forEach(function (m) { linha('M' + (bx + bw * m) + ',30 L' + (bx + bw * m) + ',50', '#ffffff', 3); });
-  // rostinho do juiz
-  if (SPR.pronto) {
+  // rostinho do chefão
+  if (j.tipo === 'goleiro') {
+    ctx.save(); ctx.beginPath(); ctx.arc(bx - 26, 33, 22, 0, Math.PI * 2); ctx.fillStyle = GL.camisa; ctx.fill(); ctx.clip();
+    ctx.translate(bx - 24, 60); ctx.scale(0.26, 0.26); cabecaGoleiro(corPele(j.nivel), j.nivel, t, {});
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(bx - 26, 33, 22, 0, Math.PI * 2); ctx.lineWidth = 2.5; ctx.strokeStyle = TINTA; ctx.stroke();
+  } else if (SPR.pronto) {
     var qj = SPR.q.juiz[j.nivel].idle;
     ctx.save(); ctx.beginPath(); ctx.arc(bx - 26, 33, 22, 0, Math.PI * 2); ctx.fillStyle = '#ef4f8c'; ctx.fill(); ctx.clip();
     ctx.drawImage(qj.c, 36, 58, 120, 120, bx - 50, 9, 48, 48);
@@ -2471,6 +2513,9 @@ function efeitosDoQuadro(jogo, dt) {
   // juiz de carrinho levanta terra
   if (j.correndo && tique) fx('dirt_02', j.x + j.w / 2, CHAO - 10, '#a1887f', { vx: (j.olhando === 1 ? -1 : 1) * 80, vy: -60, grav: 300, vida: 0.5, tam: 46, cresce: 0.5, alfa: 0.8 });
   // rastro de fogo da Bomba de Ouro
+  jogo.perigos.forEach(function (p) {
+    if (p.tipo === 'fogo' && tique) fx('flame_04', p.x - p.vx * 0.03, p.y, Math.random() < 0.5 ? '#ffb300' : '#ff6d00', { vx: -p.vx * 0.2, vy: -30, vida: 0.3, tam: 40, cresce: -0.4, giro: Math.atan2(p.vy, p.vx) - Math.PI / 2, luz: true });
+  });
   jogo.chutes.forEach(function (ch) {
     if (ch.especial) fx(Math.random() < 0.5 ? 'flame_04' : 'fire_01', ch.x - ch.vx * 0.02, ch.y + (Math.random() - 0.5) * 16, Math.random() < 0.5 ? '#ffb300' : '#ff6d00', { vx: -ch.vx * 0.15, vy: -40, vida: 0.35, tam: 54, cresce: -0.4, giro: Math.atan2(ch.vy, ch.vx) - Math.PI / 2, luz: true });
   });
@@ -2498,6 +2543,277 @@ function efeitoEvento(ev, jogo) {
   if (ev === 'ole') fx('circle_02', c.x + c.w / 2, c.y + c.h / 2, '#ffe066', { vida: 0.4, tam: 40, cresce: 2, luz: true });
   if (ev === 'nivel') for (k = 0; k < 10; k++) fx('smoke_04', cj.x + Math.random() * cj.w, cj.y + Math.random() * 80, '#eceff1', { vy: -60, vida: 1, tam: 60, cresce: 1, alfa: 0.8 });
   if (ev === 'apito') fx('circle_02', j.x - 10, j.y + 110, '#e0f7fa', { vida: 0.5, tam: 40, cresce: 3, luz: true });
+  if (ev === 'defendeu') fx('star_06', cj.x + 4, c.y + 30, '#c6ff00', { vida: 0.25, tam: 56, luz: true });
+  if (ev === 'brilho' && j.tipo === 'goleiro') { var hc = topoCareca(j); fx('light_01', hc.x, hc.y, '#ffffff', { vida: 0.6, tam: 160, luz: true }); }
+  if (ev === 'preso') for (k = 0; k < 6; k++) fx('dirt_02', c.x + c.w / 2, CHAO - 6, '#d7c9a7', { vx: (Math.random() - 0.5) * 200, vy: -80, grav: 300, vida: 0.4, tam: 30 });
+}
+
+// =================================================================
+// ARTE: Goleirão Bigodão (Fase 2) — desenhado em código, no estilo dos
+// personagens do Kenney: formas arredondadas, sem contorno, sombra suave.
+// =================================================================
+var GL = {
+  camisa: '#aeea00', camisaSombra: '#8fc400', listra: '#263238', calcao: '#263238',
+  luva: '#ff8f00', luvaSombra: '#e06c00', punho: '#ffffff', chuteira: '#212121', sola: '#eeeeee',
+  bigode: '#1b1b1f', sobrancelha: '#1b1b1f',
+  pele: ['#f1b48a', '#f29a7c', '#ff806a'],
+};
+var ESCALA_GOLEIRO = 0.78;
+function corPele(nivel, flash) { return flash ? '#fff1e6' : GL.pele[(nivel || 1) - 1]; }
+function rr2(x, y, w, h, r) { return caixaArredondada(x, y, w, h, Math.min(r, w / 2, h / 2)); }
+
+// luva grande (origem no punho, aponta para baixo)
+function luvaGoleiro(s, nua, pele) {
+  if (nua) { parte(oval(0, 14, 15, 15), pele, { sombraX: 6, linha: 0 }); return; }
+  parte(rr2(-17, 0, 34, 10, 4), GL.punho, { linha: 0 });
+  parte('M-22,8 C-24,30 -20,46 0,48 C20,46 24,30 22,8 Z', GL.luva, { sombraX: 8, corSombra: 'rgba(160,60,0,0.3)', linha: 0 });
+  parte('M-22,14 C-34,14 -36,30 -24,32 Z', GL.luvaSombra, { linha: 0 });
+  linha('M-8,40 L-8,30 M2,42 L2,30 M12,40 L12,30', 'rgba(120,40,0,0.35)', 2.5);
+}
+
+function bracoGoleiro(ox, oy, ang, cot, cor, pele, nua) {
+  ctx.save(); ctx.translate(ox, oy); ctx.rotate(ang);
+  parte(rr2(-19, -14, 38, 46, 16), cor, { sombraX: 9, corSombra: 'rgba(0,0,0,0.12)', linha: 0 });
+  ctx.translate(0, 28); ctx.rotate(cot || 0);
+  parte(rr2(-14, -4, 28, 44, 13), pele, { sombraX: 6, corSombra: 'rgba(120,40,20,0.18)', linha: 0 });
+  ctx.translate(0, 36);
+  luvaGoleiro(1, nua, pele);
+  ctx.restore();
+}
+
+function pernaGoleiro(ox, ang, joelho, pele) {
+  ctx.save(); ctx.translate(ox, -112); ctx.rotate(ang);
+  parte(rr2(-18, 0, 36, 30, 12), pele, { sombraX: 8, corSombra: 'rgba(120,40,20,0.18)', linha: 0 });
+  ctx.translate(0, 26); ctx.rotate(joelho || 0);
+  parte(rr2(-17, 0, 34, 60, 10), GL.camisa, { sombraX: 8, corSombra: 'rgba(0,0,0,0.14)', linha: 0 });
+  parte(rr2(-17, 10, 34, 6, 2), GL.listra, { linha: 0 });
+  parte('M-20,56 L22,56 C30,56 34,62 34,70 L34,74 L-20,74 Z', GL.chuteira, { linha: 0 });
+  parte('M-20,70 L34,70 L34,76 L-20,76 Z', GL.sola, { linha: 0 });
+  ctx.restore();
+}
+
+// Cabeça careca com o bigodão (origem no pescoço; olha para a esquerda)
+function cabecaGoleiro(pele, nivel, t, opc) {
+  opc = opc || {};
+  // orelhas
+  parte(oval(-82, -70, 16, 20), pele, { linha: 0 }); parte(oval(82, -70, 16, 20), pele, { linha: 0 });
+  parte(oval(-82, -70, 8, 11), 'rgba(150,60,40,0.25)', { linha: 0 }); parte(oval(82, -70, 8, 11), 'rgba(150,60,40,0.25)', { linha: 0 });
+  // cabeça (careca)
+  parte(rr2(-80, -140, 160, 142, 58), pele, { sombra: 'M30,-160 C90,-140 100,-30 40,10 L120,10 L120,-160 Z', corSombra: 'rgba(150,60,40,0.16)', linha: 0 });
+  var brilho = opc.brilho || 0;
+  parte('M-50,-118 C-38,-134 -10,-138 8,-132 C-14,-126 -34,-118 -46,-104 Z', 'rgba(255,255,255,' + (0.45 + brilho * 0.5) + ')', { linha: 0 });
+  if (brilho > 0) {
+    ctx.save(); ctx.translate(-18, -128); ctx.rotate(t * 3); ctx.scale(0.6 + brilho, 0.6 + brilho);
+    preencher('M0,-22 L5,-5 L22,0 L5,5 L0,22 L-5,5 L-22,0 L-5,-5 Z', 'rgba(255,255,255,0.95)');
+    ctx.restore();
+  }
+  if (nivel >= 2 && !opc.tonto) linha('M48,-118 c4,4 4,4 0,8 M56,-118 c-4,4 -4,4 0,8 M46,-112 c4,-4 4,-4 8,0', '#d32f2f', 3);
+  // olhos
+  if (opc.tonto) {
+    [[-36, -72], [8, -72]].forEach(function (o) { parte(oval(o[0], o[1], 15, 15), '#ffffff', { linha: 0 }); linha('M' + o[0] + ',' + o[1] + ' m-7,0 a7,7 0 1,1 14,0 a5,5 0 1,1 -10,0', GL.bigode, 2.5); });
+  } else {
+    parte(oval(-36, -72, 16, 17), '#ffffff', { linha: 0 }); parte(oval(8, -72, 15, 17), '#ffffff', { linha: 0 });
+    preencher(oval(-41, -70, 8, 9) + oval(3, -70, 8, 9), '#202124');
+    preencher(oval(-39, -74, 2.6, 2.6) + oval(5, -74, 2.6, 2.6), '#ffffff');
+  }
+  // sobrancelhas grossas (mais bravas a cada nível)
+  var b = nivel >= 2 || opc.raiva ? 8 : 0;
+  parte('M-58,' + (-98 + b * 0.2) + ' L-16,' + (-96 + b) + ' L-18,' + (-86 + b) + ' L-58,' + (-88 + b * 0.2) + ' Z', GL.sobrancelha, { linha: 0 });
+  parte('M-6,' + (-96 + b) + ' L30,' + (-98 + b * 0.2) + ' L30,' + (-88 + b * 0.2) + ' L-4,' + (-86 + b) + ' Z', GL.sobrancelha, { linha: 0 });
+  // nariz
+  parte(rr2(-24, -62, 24, 26, 11), 'rgba(170,70,50,0.35)', { linha: 0 });
+  // bigodão de pontas enroladas
+  ctx.save(); ctx.translate(-14, -30);
+  var meio = 'M0,-2 C-10,-12 -26,-16 -40,-10 C-52,-5 -62,2 -74,-2 C-86,-6 -90,-20 -84,-30 C-80,-37 -70,-38 -66,-32 C-64,-28 -68,-24 -72,-26 C-74,-20 -70,-14 -62,-16 C-52,-18 -46,-26 -34,-28 C-20,-30 -8,-24 0,-16 Z';
+  preencher(meio, GL.bigode);
+  ctx.save(); ctx.scale(-1, 1); preencher(meio, GL.bigode); ctx.restore();
+  preencher('M-30,-24 C-20,-26 -10,-22 -4,-16 C-12,-20 -22,-22 -30,-20 Z', 'rgba(255,255,255,0.18)');
+  ctx.restore();
+  if (opc.boca) parte(oval(-14, -12, 12, 9), '#5d1a1a', { linha: 0 });
+}
+
+function poseGoleiro(c) {
+  var a = c.ataqueAtual, e = c.estado, lancou = e === 'ataque';
+  var p = { fr: 0.35, tr: -0.35, cf: 0, ct: 0, pf: 0.12, pt: -0.12, jf: 0, jt: 0, agacha: 0, nuaF: false, nuaT: false };
+  if (e === 'transicao') { p.fr = 2.6; p.tr = -2.6; p.raiva = true; return p; }
+  if (c.defendendo || (e === 'aviso' && (a === 'defesa' || a === 'defesaDupla'))) {
+    p.fr = 2.2; p.tr = -2.2; p.cf = 0.5; p.ct = -0.5; p.agacha = 22; p.pf = 0.45; p.pt = -0.45; p.jf = -0.45; p.jt = 0.45; return p;
+  }
+  if (e !== 'aviso' && e !== 'ataque') return p;
+  if (a === 'luva' || a === 'luvaDupla') {
+    if (!lancou) { p.fr = 2.7; p.cf = 0.9; if (a === 'luvaDupla') { p.tr = -2.7; p.ct = -0.9; } }
+    else { p.fr = 1.55; p.nuaF = true; if (a === 'luvaDupla') { p.tr = -1.2; p.nuaT = true; } }
+  } else if (a === 'tiroDeMeta' || a === 'tiroDeMetaDuplo') {
+    if (!lancou) { p.pf = -0.5; p.jf = 0.6; p.fr = 0.9; p.tr = -0.8; p.bolaNoPe = true; }
+    else { p.pf = 1.2; p.jf = -0.2; p.fr = -0.4; p.tr = -1.0; }
+  } else if (a === 'rede') { p.fr = 2.95; p.tr = -2.95; p.cf = 0.2; p.ct = -0.2; p.rede = !lancou; }
+  else if (a === 'barreira') { p.fr = 1.6; p.tr = -0.3; p.boca = true; }
+  else if (a === 'sacoDeBolas' || a === 'sacoDeBolasRapido') { if (!lancou) { p.tr = -2.9; p.ct = -0.6; p.saco = true; } else { p.fr = 2.8; p.tr = -2.8; } }
+  else if (a === 'careca') { p.fr = 0.6; p.tr = -0.6; p.brilho = 1; }
+  return p;
+}
+
+ARTE.goleiro = function (c, jogo, t) {
+  var flash = c.piscar > 0 && c.estado !== 'derrotado';
+  var pele = corPele(c.nivel, flash), cam = flash ? '#f4ff81' : GL.camisa;
+  var cx = c.x + c.w / 2, p = poseGoleiro(c);
+  elipse(cx, CHAO - 1, 84, 11, 'rgba(10,30,15,0.35)');
+  ctx.save(); ctx.translate(cx, CHAO);
+  if (c.estado === 'derrotado') ctx.rotate(-Math.min(1, app.fimEm * 2.2) * 1.4);
+  if (c.estado === 'transicao') ctx.translate((Math.random() - 0.5) * 6, 0);
+  if ((c.olhando || -1) === 1) ctx.scale(-1, 1);
+  ctx.scale(ESCALA_GOLEIRO, ESCALA_GOLEIRO);   // do mesmo tamanho do juiz
+  var bob = c.estado === 'respiro' || c.estado === 'entrada' ? Math.sin(t * 3) * 3 : 0;
+  var desce = p.agacha + bob;
+
+  // pernas
+  ctx.save(); ctx.translate(0, desce * 0.6);
+  pernaGoleiro(30, p.pt, p.jt, pele);
+  pernaGoleiro(-30, p.pf, p.jf, pele);
+  ctx.restore();
+  if (p.bolaNoPe) bola(-70, -16, 16, t * 2);
+  ctx.save(); ctx.translate(0, desce);
+  // braço de trás
+  bracoGoleiro(70, -238, p.tr, p.ct, escurecer(GL.camisa, 0.1), pele, p.nuaT);
+  if (p.saco) {   // saco de bolas nas costas
+    parte('M40,-330 C10,-330 6,-270 30,-240 L110,-240 C130,-270 120,-330 90,-330 Z', '#a1887f', { sombraX: 85, linha: 0 });
+    linha('M44,-326 C60,-338 80,-338 92,-326', '#6d4c41', 6);
+    bola(56, -322, 12, 0.3); bola(80, -326, 12, 1.2);
+  }
+  // calção e camisa
+  parte(rr2(-66, -142, 132, 56, 18), GL.calcao, { sombraX: 34, corSombra: 'rgba(255,255,255,0.06)', linha: 0 });
+  parte('M-74,-250 C-80,-200 -78,-160 -70,-132 L70,-132 C78,-160 80,-200 74,-250 C40,-264 -40,-264 -74,-250 Z', cam,
+        { sombra: 'M30,-270 C90,-250 90,-150 60,-120 L120,-120 L120,-270 Z', corSombra: 'rgba(60,90,0,0.25)', brilho: 'M-66,-238 C-62,-252 -46,-258 -30,-258 C-50,-248 -58,-230 -60,-206 Z', corBrilho: 'rgba(255,255,255,0.3)', linha: 0 });
+  parte('M-74,-200 L-60,-200 L-56,-132 L-70,-132 Z M60,-200 L74,-200 L70,-132 L56,-132 Z', GL.listra, { linha: 0 });
+  parte('M-30,-258 L0,-226 L30,-258 L18,-260 L0,-240 L-18,-260 Z', GL.listra, { linha: 0 });
+  texto('1', -2, -186, 40, GL.listra, 'center');
+  // cabeça
+  ctx.save(); ctx.translate(-4, -246);
+  cabecaGoleiro(pele, c.nivel, t, { brilho: p.brilho ? 0.5 + Math.sin(t * 20) * 0.5 : 0, raiva: p.raiva, tonto: c.estado === 'derrotado', boca: p.boca || c.estado === 'transicao' });
+  ctx.restore();
+  // braço da frente
+  bracoGoleiro(-70, -238, p.fr, p.cf, cam, pele, p.nuaF);
+  if (p.rede) {   // rede embolada nas mãos, em cima da cabeça
+    ctx.save(); ctx.translate(-6, -446);
+    parte(oval(0, 0, 58, 26), 'rgba(255,255,255,0.25)', { linha: 0 });
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+    for (var k = -4; k <= 4; k++) { ctx.beginPath(); ctx.moveTo(k * 13, -24); ctx.quadraticCurveTo(k * 15, 0, k * 13, 24); ctx.stroke(); }
+    for (var m = -1; m <= 1; m++) { ctx.beginPath(); ctx.ellipse(0, m * 12, 56, 8, 0, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.restore();
+  // efeitos por cima
+  var topo = -400 + desce;
+  if (p.raiva) for (var v = 0; v < 3; v++) preencher(oval(-36 + v * 36, topo - 10 - ((t * 60 + v * 15) % 30), 14, 10), 'rgba(236,239,241,0.8)');
+  if (c.nivel === 3 && c.estado !== 'derrotado') {
+    var gota = (t * 40) % 24;
+    parte('M70,' + (topo + 60 + gota) + ' c-6,8 -4,14 0,14 c4,0 6,-6 0,-14 Z', '#81d4fa', { linha: 0 });
+  }
+  if (c.estado === 'aviso') balaoAviso(-10, topo - 40, t);
+  if (c.estado === 'derrotado') {
+    for (var s = 0; s < 4; s++) {
+      var an = t * 4 + s * Math.PI / 2;
+      ctx.save(); ctx.translate(Math.cos(an) * 60, topo + 30 + Math.sin(an) * 14);
+      parte('M0,-8 L2.4,-2.6 L8,-2.4 L3.6,1.2 L5,7 L0,3.8 L-5,7 L-3.6,1.2 L-8,-2.4 L-2.4,-2.6 Z', '#ffd600', { linha: 1.8 });
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+};
+
+// posição da careca na tela (para o raio de luz sair dela)
+function topoCareca(c) { return { x: c.x + c.w / 2 - 22 * ESCALA_GOLEIRO, y: CHAO - 372 * ESCALA_GOLEIRO }; }
+
+// ----- arte dos poderes do goleiro -----
+function arteLuva(p, t) {
+  ctx.save(); ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+  for (var k = 1; k <= 3; k++) linha('M' + (Math.sign(p.vx) * -18 * k) + ',-10 l' + (Math.sign(p.vx) * -14) + ',0 M' + (Math.sign(p.vx) * -18 * k) + ',10 l' + (Math.sign(p.vx) * -10) + ',0', 'rgba(255,255,255,0.5)', 3);
+  ctx.rotate(t * 14); ctx.translate(0, -24);
+  luvaGoleiro(1, false);
+  ctx.restore();
+}
+function sombraBola(p) {
+  var alt = Math.max(0, CHAO - (p.y + p.r));
+  elipse(p.x, CHAO - 2, p.r * (1.2 - Math.min(0.7, alt / 400)), 4, 'rgba(0,0,0,' + (0.35 - Math.min(0.25, alt / 1200)) + ')');
+}
+function arteFogo(p, t) {
+  var ang = Math.atan2(p.vy, p.vx);
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(ang);
+  var g = ctx.createLinearGradient(-70, 0, 0, 0);
+  g.addColorStop(0, 'rgba(255,61,0,0)'); g.addColorStop(0.6, 'rgba(255,109,0,0.85)'); g.addColorStop(1, 'rgba(255,214,0,0.95)');
+  ctx.fillStyle = g; ctx.fill(caminho('M0,-20 C-24,-22 -44,-10 -72,-2 C-44,6 -24,22 0,20 Z'));
+  ctx.restore();
+  var aura = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, 34);
+  aura.addColorStop(0, 'rgba(255,171,0,0.7)'); aura.addColorStop(1, 'rgba(255,171,0,0)');
+  ctx.fillStyle = aura; ctx.fillRect(p.x - 34, p.y - 34, 68, 68);
+  bola(p.x, p.y, p.r, t * 10, true);
+}
+function arteRede(p, t) {
+  var x = p.x, w = p.w;
+  if (p.etapa === 'mira' || p.etapa === 'parada') {
+    var pisca = Math.floor(t * 10) % 2 === 0;
+    ctx.save(); ctx.globalAlpha = p.etapa === 'parada' ? 0.95 : 0.7;
+    preencher(caixaArredondada(x, CHAO - 10, w, 14, 6), 'rgba(0,0,0,0.3)');
+    ctx.setLineDash([8, 6]); linha(caixaArredondada(x, CHAO - 10, w, 14, 6), pisca ? '#ffd600' : '#ffffff', 2.5); ctx.setLineDash([]);
+    for (var k = 1; k < 8; k++) linha('M' + (x + k * w / 8) + ',' + (CHAO - 10) + ' l0,14', 'rgba(255,255,255,0.5)', 1);
+    ctx.restore();
+    return;
+  }
+  var topo, alt;
+  if (p.etapa === 'caindo') { topo = CHAO - 320 + p.queda * 210; alt = 100; }
+  else { topo = CHAO - (p.prendeu ? 96 : 22); alt = p.prendeu ? 96 : 22; }
+  if (p.prendeu && p.etapa === 'caiu') return;   // quando prende, a rede é desenhada em cima do Craque
+  ctx.save();
+  preencher(caixaArredondada(x - 6, topo, w + 12, alt, 14), 'rgba(255,255,255,0.18)');
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2;
+  for (var i = 0; i <= 8; i++) { ctx.beginPath(); ctx.moveTo(x + i * w / 8, topo); ctx.lineTo(x + i * w / 8 + (i - 4) * 2, topo + alt); ctx.stroke(); }
+  for (var j = 0; j <= 5; j++) { ctx.beginPath(); ctx.moveTo(x - 4, topo + j * alt / 5); ctx.lineTo(x + w + 4, topo + j * alt / 5); ctx.stroke(); }
+  [x - 2, x + w + 2].forEach(function (px) { parte(oval(px, topo + alt, 6, 6), '#455a64', { linha: 0 }); });
+  ctx.restore();
+}
+function redeNoCraque(c, t) {
+  var cx = c.x + c.w / 2, tremor = Math.sin(t * 40) * 2;
+  ctx.save(); ctx.translate(cx + tremor, c.y + c.h);
+  preencher('M-34,0 C-40,-60 -26,-104 0,-106 C26,-104 40,-60 34,0 Z', 'rgba(255,255,255,0.22)');
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2;
+  for (var i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(i * 11, 0); ctx.quadraticCurveTo(i * 13, -60, i * 3, -104); ctx.stroke(); }
+  for (var j = 1; j <= 5; j++) { var y = -j * 19, l = 34 - Math.max(0, j - 3) * 9; ctx.beginPath(); ctx.moveTo(-l, y); ctx.quadraticCurveTo(0, y - 6, l, y); ctx.stroke(); }
+  parte(oval(-34, 0, 6, 6), '#455a64', { linha: 0 }); parte(oval(34, 0, 6, 6), '#455a64', { linha: 0 });
+  ctx.restore();
+  var tq = c.presoToques || 0;
+  for (var k = 0; k < 4; k++) parte(oval(cx - 21 + k * 14, c.y - 18, 5, 5), k < tq ? '#ffd600' : 'rgba(255,255,255,0.35)', { linha: 1.4 });
+}
+function arteLuz(p, t, jogo) {
+  var cx = p.x + p.w / 2;
+  if (jogo && jogo.chefe.tipo === 'goleiro') {   // raio saindo da careca (só desenho)
+    var h = topoCareca(jogo.chefe);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    var g = ctx.createLinearGradient(h.x, h.y, cx, CHAO);
+    g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,241,118,0.25)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(h.x - 6, h.y); ctx.lineTo(h.x + 6, h.y); ctx.lineTo(cx + p.w / 2, CHAO - 10); ctx.lineTo(cx - p.w / 2, CHAO - 10); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  var luz = ctx.createRadialGradient(cx, CHAO - 20, 4, cx, CHAO - 20, p.w * 0.9);
+  luz.addColorStop(0, 'rgba(255,255,255,1)'); luz.addColorStop(0.35, 'rgba(255,245,157,0.9)'); luz.addColorStop(1, 'rgba(255,235,59,0)');
+  ctx.fillStyle = luz; ctx.beginPath(); ctx.ellipse(cx, CHAO - 20, p.w * 0.85, p.h * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  for (var k = 0; k < 4; k++) { var a = t * 6 + k * 1.6; preencher(oval(cx + Math.cos(a) * 26, CHAO - 26 + Math.sin(a) * 14, 2.5, 2.5), '#ffffff'); }
+}
+function arteBarreira(b, t) {
+  var cx = b.x + b.w / 2, base = b.y + b.h;
+  ctx.save(); if (b.piscar > 0) ctx.globalAlpha = 0.6;
+  linha('M' + (cx - 10) + ',' + (base - 30) + ' L' + (cx - 18) + ',' + base + ' M' + (cx + 10) + ',' + (base - 30) + ' L' + (cx + 18) + ',' + base, '#8d6e63', 5);
+  var borda = { linha: 3, corLinha: '#c8a27a' };
+  parte(oval(cx, b.y + 14, 13, 14), '#e0ac69', borda);
+  preencher('M' + (cx - 13) + ',' + (b.y + 10) + ' C' + (cx - 12) + ',' + (b.y - 2) + ' ' + (cx + 12) + ',' + (b.y - 2) + ' ' + (cx + 13) + ',' + (b.y + 10) + ' Z', '#3e2723');
+  parte(rr2(cx - 21, b.y + 28, 42, 36, 8), '#e53935', borda);
+  parte(rr2(cx - 21, b.y + 60, 42, 14, 4), '#ffffff', borda);
+  parte(rr2(cx - 18, b.y + 72, 14, 16, 3), '#e0ac69', borda); parte(rr2(cx + 4, b.y + 72, 14, 16, 3), '#e0ac69', borda);
+  texto('?', cx, b.y + 46, 16, '#ffffff', 'center');
+  var rachaduras = 4 - b.vida;
+  for (var k = 0; k < rachaduras; k++) linha('M' + (cx - 16 + k * 10) + ',' + (b.y + 30 + (k % 2) * 8) + ' l6,8 l-5,6 l7,8', '#5d4037', 2);
+  ctx.restore();
 }
 
 // =================================================================
@@ -2508,16 +2824,18 @@ function desenharCena(jogo, t) {
   cenaJogo = jogo;
   var j = jogo.chefe;
   if (jogo.atk && jogo.atk.tv) ARTE.tvVar(t);
-  jogo.perigos.forEach(function (p) { if (p.tipo === 'spray' || p.tipo === 'sombra' || p.tipo === 'mira') ARTE.perigo(p, t, jogo); });
+  var noChao = { spray: 1, sombra: 1, mira: 1 };
+  jogo.perigos.forEach(function (p) { if (noChao[p.tipo] || (p.tipo === 'rede' && (p.etapa === 'mira' || p.etapa === 'parada'))) ARTE.perigo(p, t, jogo); });
   (ARTE[j.tipo] || ARTE.juiz)(j, jogo, t);
-  jogo.inimigos.forEach(function (b) { ARTE.bandeirinha(b, t); });
+  jogo.inimigos.forEach(function (b) { if (b.tipo === 'barreira') arteBarreira(b, t); else ARTE.bandeirinha(b, t); });
   var c = jogo.craque;
   if (c.dashTempo > 0) {
     for (var k = 3; k >= 1; k--) { ctx.globalAlpha = 0.14 * (4 - k); ARTE.craque(Object.assign({}, c, { x: c.x - c.dashDir * k * 17 }), t, true); }
     ctx.globalAlpha = 1;
   }
   ARTE.craque(c, t);
-  jogo.perigos.forEach(function (p) { if (p.tipo !== 'spray' && p.tipo !== 'sombra' && p.tipo !== 'mira') ARTE.perigo(p, t, jogo); });
+  if (c.presoTempo > 0) redeNoCraque(c, t);
+  jogo.perigos.forEach(function (p) { if (!noChao[p.tipo] && !(p.tipo === 'rede' && (p.etapa === 'mira' || p.etapa === 'parada'))) ARTE.perigo(p, t, jogo); });
   jogo.chutes.forEach(function (ch) { ARTE.chute(ch, t); });
 }
 
@@ -2528,8 +2846,12 @@ function criarPose() {
   c.x = 210; c.y = CHAO - 70; c.noChao = true; c.estado = 'parado'; c.recargaChute = AJUSTES.craque.cadenciaChute;
   j.chefe.estado = 'aviso'; j.chefe.ataqueAtual = app.fase === 2 ? 'luva' : 'amarelo';
   [[330, 0], [450, 0], [570, 0]].forEach(function (b) { j.chutes.push({ x: b[0], y: c.y + 32, vx: 800, vy: 0, r: 8, dano: 0 }); });
-  j.perigos.push({ tipo: 'amarelo', x: 600, y: 230, w: 26, h: 18, giro: 0.6 });
-  j.perigos.push({ tipo: 'amarelo', x: 520, y: 270, w: 26, h: 18, giro: 2.1 });
+  if (app.fase === 2) {
+    j.perigos.push({ tipo: 'bolaQuica', x: 560, y: 300, r: 14, vx: -200, vy: 0 });
+  } else {
+    j.perigos.push({ tipo: 'amarelo', x: 600, y: 230, w: 26, h: 18, giro: 0.6 });
+    j.perigos.push({ tipo: 'amarelo', x: 520, y: 270, w: 26, h: 18, giro: 2.1 });
+  }
   return j;
 }
 
@@ -2662,8 +2984,9 @@ function telaAjuda(t) {
   });
   // faixa do direcional
   ctx.save(); ctx.translate(70, 392);
-  preencher(caixaArredondada(0, 0, 820, 52, 14), 'rgba(255,255,255,0.07)');
-  texto('Bola com setas:  ◀ ▶ andar   ·   ▲ mirar para cima   ·   ▼ agachar (desvia do laser alto)', 410, 26, 16, '#ffffff', 'center', null, 800);
+  preencher(caixaArredondada(0, -6, 820, 62, 14), 'rgba(255,255,255,0.07)');
+  texto('Bola com setas:  ◀ ▶ andar   ·   ▲ mirar para cima   ·   ▼ agachar (desvia do laser alto)', 410, 12, 15, '#ffffff', 'center', null, 800);
+  texto('Fase 2: a Bomba de Ouro fura a defesa do goleiro  ·  Preso na rede? Toque nos botões!', 410, 38, 15, '#c6ff00', 'center', null, 800);
   ctx.restore();
   texto('Teclado: setas · Z chute · X pulo · C drible · V especial · Esc pausa', LARG / 2, 462, 14, '#c5cae9', 'center', null, 700);
   botaoMenu('voltar', 400, 474, 160, 40, 'VOLTAR', '#546e7a', function () { app.tela = 'inicio'; }, { tam: 18, principal: true });
