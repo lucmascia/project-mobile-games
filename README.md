@@ -6,7 +6,7 @@ Jogos para celular feitos em família, publicados como app: abrem por um link, s
 
 | Jogo | Link direto |
 |---|---|
-| Craque vs. Juiz Apitão | https://lucmascia.github.io/project-mobile-games/craque/ |
+| Craque (Fase 1: Juiz Apitão · Fase 2: Goleirão Bigodão) | https://lucmascia.github.io/project-mobile-games/craque/ |
 
 ## Instalar no celular
 1. Abra o link do jogo no navegador (Safari no iPhone, Chrome no Android).

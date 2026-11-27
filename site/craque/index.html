@@ -1270,7 +1270,7 @@ function processarEventos() {
         ? { texto: 'SEGUNDO TEMPO!', sub: subs[0], t: 1.8, total: 1.8 }
         : { texto: 'PRORROGAÇÃO!', sub: subs[1], t: 1.8, total: 1.8 };
     }
-    if (ev === 'defendeu') {
+    if (ev === 'defendeu' && !app.popups.some(function (q) { return q.texto === 'DEFENDEU!'; })) {   // um aviso de cada vez
       var cxd = caixaChefe(j);
       app.popups.push({ texto: 'DEFENDEU!', x: cxd.x - 10, y: jogo.craque.y - 10, t: 0.6, total: 0.6, tam: 24, cor: '#c6ff00' });
     }
