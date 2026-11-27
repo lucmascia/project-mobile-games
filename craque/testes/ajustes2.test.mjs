@@ -16,7 +16,7 @@ test('pulo alcança pelo menos 210 px de altura', () => {
 
 test('driblar através de um ataque dá OLÉ!, não machuca e enche o especial', () => {
   const jogo = L.criarJogo('profissional', semente(3)); const c = jogo.craque;
-  jogo.juiz.estado = 'respiro'; jogo.juiz.t = 99;
+  jogo.chefe.estado = 'respiro'; jogo.chefe.t = 99;
   jogo.perigos.push({ tipo: 'amarelo', x: c.x + 60, y: c.y + 20, w: 26, h: 18, vx: 0, vy: 0 });
   const ctrl = L.criarControle(); ctrl.dash = true;
   for (let i = 0; i < 20; i++) L.passoJogo(jogo, ctrl, DT);
@@ -27,51 +27,51 @@ test('driblar através de um ataque dá OLÉ!, não machuca e enche o especial',
 });
 
 test('juiz não chama bandeirinhas se ainda tem bandeirinha em campo', () => {
-  const jogo = L.criarJogo('profissional', semente(5)); const j = jogo.juiz; j.fase = 2;
+  const jogo = L.criarJogo('profissional', semente(5)); const j = jogo.chefe; j.nivel = 2;
   jogo.inimigos.push({ tipo: 'bandeirinha' });
   for (let i = 0; i < 200; i++) assert.notEqual(L.escolherAtaque(j, jogo), 'bandeirinhas');
 });
 
 test('juiz não solta outro cartão vermelho com um ainda perseguindo', () => {
-  const jogo = L.criarJogo('profissional', semente(6)); const j = jogo.juiz; j.fase = 2;
+  const jogo = L.criarJogo('profissional', semente(6)); const j = jogo.chefe; j.nivel = 2;
   jogo.perigos.push({ tipo: 'vermelho' });
   for (let i = 0; i < 200; i++) assert.notEqual(L.escolherAtaque(j, jogo), 'vermelho');
 });
 
 test('no Amador, o intervalo devolve 1 coração', () => {
-  const jogo = L.criarJogo('amador', semente(2)); jogo.juiz.estado = 'respiro';
+  const jogo = L.criarJogo('amador', semente(2)); jogo.chefe.estado = 'respiro';
   jogo.craque.coracoes = 2;
-  L.ferirJuiz(jogo.juiz, 99999);
+  L.ferirChefe(jogo.chefe, 99999);
   L.passoJogo(jogo, L.criarControle(), DT);
   assert.equal(jogo.craque.coracoes, 3);
   assert.ok(jogo.eventos.includes('cura'));
 });
 
 test('no Profissional, o intervalo não devolve coração', () => {
-  const jogo = L.criarJogo('profissional', semente(2)); jogo.juiz.estado = 'respiro';
+  const jogo = L.criarJogo('profissional', semente(2)); jogo.chefe.estado = 'respiro';
   jogo.craque.coracoes = 2;
-  L.ferirJuiz(jogo.juiz, 99999);
+  L.ferirChefe(jogo.chefe, 99999);
   L.passoJogo(jogo, L.criarControle(), DT);
   assert.equal(jogo.craque.coracoes, 2);
 });
 
 test('no Amador só entra 1 bandeirinha', () => {
-  const jogo = L.criarJogo('amador', semente(2)); jogo.juiz.fase = 2;
+  const jogo = L.criarJogo('amador', semente(2)); jogo.chefe.nivel = 2;
   L.ATAQUES.bandeirinhas.iniciar(jogo);
   assert.equal(jogo.inimigos.length, 1);
 });
 
 test('Amador descansa mais entre os ataques', () => {
   const a = L.criarJogo('amador'), p = L.criarJogo('profissional');
-  assert.ok(L.tempoRespiro(a.juiz) > L.tempoRespiro(p.juiz));
+  assert.ok(L.tempoRespiro(a.chefe) > L.tempoRespiro(p.chefe));
 });
 
 // "pressão": golpes que um Craque parado levaria em 30 s de cada fase
 function pressao(dif, fase) {
   let total = 0;
   for (const seed of [1, 2, 3, 4, 5]) {
-    const j = L.criarJogo(dif, semente(seed)); j.juiz.fase = fase;
-    j.juiz.vida = fase === 1 ? j.juiz.vidaMax : L.limiteFase(j.juiz, fase - 1);
+    const j = L.criarJogo(dif, semente(seed)); j.chefe.nivel = fase;
+    j.chefe.vida = fase === 1 ? j.chefe.vidaMax : L.limiteNivel(j.chefe, fase - 1);
     const c = L.criarControle();
     for (let i = 0; i < 60 * 30; i++) {
       j.craque.coracoes = 99; L.passoJogo(j, c, DT);

@@ -7,7 +7,7 @@ const DT = 1/60;
 
 function jogoNovo(fase = 1, dif = 'profissional') {
   const j = L.criarJogo(dif, semente(7));
-  j.juiz.fase = fase; j.juiz.estado = 'ataque';
+  j.chefe.nivel = fase; j.chefe.estado = 'ataque';
   return j;
 }
 function noApice(c) { // faz o Craque pular até o ponto mais alto
@@ -70,8 +70,8 @@ test('onda do apitaço passa por baixo do Craque pulando', () => {
 
 test('dá para pular por cima do juiz correndo', () => {
   const jogo = jogoNovo(1); const c = jogo.craque;
-  jogo.juiz.correndo = true; jogo.juiz.x = c.x - 60;
-  const caixa = L.caixaJuiz(jogo.juiz);
+  jogo.chefe.correndo = true; jogo.chefe.x = c.x - 60;
+  const caixa = L.caixaChefe(jogo.chefe);
   assert.equal(L.colideRetRet(caixa, c), true);
   noApice(c);
   assert.equal(L.colideRetRet(caixa, c), false);
@@ -104,10 +104,10 @@ test('bandeirinha cai com 3 chutes', () => {
 });
 
 test('chute no juiz tira vida e enche o especial', () => {
-  const jogo = jogoNovo(1); jogo.juiz.estado = 'respiro';
-  const antes = jogo.juiz.vida;
-  for (let i = 0; i < A.craque.acertosPorSegmento; i++) chutarEm(jogo, L.caixaJuiz(jogo.juiz));
-  assert.equal(jogo.juiz.vida, antes - A.craque.acertosPorSegmento * 4);
+  const jogo = jogoNovo(1); jogo.chefe.estado = 'respiro';
+  const antes = jogo.chefe.vida;
+  for (let i = 0; i < A.craque.acertosPorSegmento; i++) chutarEm(jogo, L.caixaChefe(jogo.chefe));
+  assert.equal(jogo.chefe.vida, antes - A.craque.acertosPorSegmento * 4);
   assert.equal(jogo.craque.especial, 1);
   assert.ok(jogo.eventos.includes('acerto'));
 });

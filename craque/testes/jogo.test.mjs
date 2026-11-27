@@ -10,7 +10,7 @@ function jogar(jogo, ctrl, segundos) { for (let t = 0; t < segundos; t += 0.05) 
 test('chutar o juiz tira vida e enche o especial', () => {
   const jogo = novo(); const ctrl = L.criarControle(); ctrl.chute = true;
   jogar(jogo, ctrl, 1);
-  assert.ok(jogo.juiz.vida < jogo.juiz.vidaMax);
+  assert.ok(jogo.chefe.vida < jogo.chefe.vidaMax);
   assert.ok(jogo.craque.especial > 0 || jogo.craque.acertosAcum > 0);
   assert.ok(jogo.eventos.includes('chute'));
 });
@@ -26,7 +26,7 @@ test('encostar num perigo tira coração e avisa', () => {
 
 test('encostar no juiz machuca', () => {
   const jogo = novo(); const c = jogo.craque;
-  c.x = jogo.juiz.x + 40;
+  c.x = jogo.chefe.x + 40;
   L.passoJogo(jogo, L.criarControle(), 1/60);
   assert.equal(c.coracoes, 2);
 });
@@ -40,7 +40,7 @@ test('sem corações = derrota', () => {
 });
 
 test('juiz sem vida = vitória', () => {
-  const jogo = novo(); jogo.juiz.fase = 3; jogo.juiz.vida = 1; jogo.juiz.estado = 'respiro';
+  const jogo = novo(); jogo.chefe.nivel = 3; jogo.chefe.vida = 1; jogo.chefe.estado = 'respiro';
   const ctrl = L.criarControle(); ctrl.chute = true;
   jogar(jogo, ctrl, 1);
   assert.equal(jogo.estado, 'vitoria');
@@ -61,14 +61,14 @@ test('pausado não avança', () => {
 });
 
 test('troca de fase limpa os perigos e avisa', () => {
-  const jogo = novo(); jogo.juiz.estado = 'respiro';
+  const jogo = novo(); jogo.chefe.estado = 'respiro';
   jogo.perigos.push({ tipo: 'amarelo', x: 300, y: 100, w: 26, h: 18, vx: 0, vy: 0 });
   jogo.inimigos.push({ tipo: 'bandeirinha', x: 20, y: 396, w: 36, h: 64, vida: 3, t: 5, levantando: 0, tempo: 8, piscar: 0 });
-  L.ferirJuiz(jogo.juiz, 99999);
+  L.ferirChefe(jogo.chefe, 99999);
   L.passoJogo(jogo, L.criarControle(), 1/60);
   assert.equal(jogo.perigos.length, 0);
   assert.equal(jogo.inimigos.length, 0);
-  assert.ok(jogo.eventos.includes('fase'));
+  assert.ok(jogo.eventos.includes('nivel'));
 });
 
 test('nota final: S sem dano e rápido, C com muito dano', () => {
@@ -82,7 +82,7 @@ test('nota final: S sem dano e rápido, C com muito dano', () => {
 test('progresso mostra quanto da vida do juiz foi tirada', () => {
   const jogo = novo();
   assert.equal(L.progresso(jogo), 0);
-  jogo.juiz.vida = jogo.juiz.vidaMax * 0.25;
+  jogo.chefe.vida = jogo.chefe.vidaMax * 0.25;
   assert.equal(L.progresso(jogo), 0.75);
 });
 
@@ -93,25 +93,32 @@ test('partida inteira simulada sem travar (juiz parado de chutar)', () => {
 });
 
 test('se a fase muda no meio da corrida, o juiz volta ao lugar olhando para o Craque', () => {
-  const jogo = novo(); const j = jogo.juiz; j.estado = 'ataque'; j.ataqueAtual = 'corrida';
+  const jogo = novo(); const j = jogo.chefe; j.estado = 'ataque'; j.ataqueAtual = 'corrida';
   L.ATAQUES.corrida.iniciar(jogo);
   jogo.craque.coracoes = 99;
   // corre até a volta começar
   for (let i = 0; i < 200 && jogo.atk.etapa !== 'volta'; i++) L.passoJogo(jogo, L.criarControle(), 1/60);
   L.passoJogo(jogo, L.criarControle(), 1/60);
   assert.equal(j.olhando, 1);
-  L.ferirJuiz(j, 99999);
+  L.ferirChefe(j, 99999);
   for (let i = 0; i < 60 * 3; i++) L.passoJogo(jogo, L.criarControle(), 1/60);
-  assert.equal(j.x, L.JUIZ_X);
+  assert.equal(j.x, L.CHEFE_X);
   assert.equal(j.olhando, -1);
   assert.equal(j.correndo, false);
 });
 
 test('na pausa da troca de fase, encostar no juiz voltando não machuca', () => {
-  const jogo = novo(); const j = jogo.juiz; j.estado = 'respiro';
+  const jogo = novo(); const j = jogo.chefe; j.estado = 'respiro';
   j.x = 200;  // juiz no meio da arena (corrida interrompida)
-  L.ferirJuiz(j, 99999);
+  L.ferirChefe(j, 99999);
   const c = jogo.craque; c.x = 260;
   L.passoJogo(jogo, L.criarControle(), 1/60);
   assert.equal(c.coracoes, 3);
+});
+
+test('jogo da fase 2 cria o goleiro', () => {
+  const jogo = L.criarJogo('amador', semente(2), 2);
+  assert.equal(jogo.fase, 2);
+  assert.equal(jogo.chefe.tipo, 'goleiro');
+  assert.equal(L.criarJogo('amador', semente(2)).chefe.tipo, 'juiz');
 });

@@ -68,18 +68,20 @@ var AJUSTES = {
   },
 
   dificuldades: {
-    // multRespiro: descanso do juiz entre ataques; cura: corações devolvidos no intervalo de cada tempo
-    amador:       { coracoes: 5, multAviso: 1.5, multVelocidadeJuiz: 0.8, multRespiro: 1.3, bandeirinhas: 1, cura: 1 },
-    profissional: { coracoes: 3, multAviso: 1.0, multVelocidadeJuiz: 1.0, multRespiro: 1.0, bandeirinhas: 2, cura: 0 },
+    // multRespiro: descanso do chefão entre ataques; cura: corações devolvidos no intervalo de cada tempo
+    amador:       { coracoes: 5, multAviso: 1.5, multVelocidadeChefe: 0.8, multRespiro: 1.3, bandeirinhas: 1, cura: 1 },
+    profissional: { coracoes: 3, multAviso: 1.0, multVelocidadeChefe: 1.0, multRespiro: 1.0, bandeirinhas: 2, cura: 0 },
   },
 
-  juiz: {
-    vida: 1600,                  // vida do juiz (mais = luta mais longa)
-    fases: [0.40, 0.35, 0.25],   // pedaço da vida em cada fase
+  // Regras que valem para todos os chefões. Cada fase tem 3 níveis: 1º tempo, 2º tempo e prorrogação.
+  chefe: {
+    niveis: [0.40, 0.35, 0.25],  // pedaço da vida em cada nível
     avisoMin: 0.6,               // tempo mínimo de aviso antes de cada ataque
-    respiro: [1.3, 1.3, 1.1],    // descanso entre ataques em cada fase
-    transicao: 1.5,              // pausa na troca de fase
+    respiro: [1.3, 1.3, 1.1],    // descanso entre ataques em cada nível
+    transicao: 1.5,              // pausa na troca de nível
   },
+  juiz: { vida: 1600 },          // Fase 1: vida do Juiz Apitão (mais = luta mais longa)
+  goleiro: { vida: 1700 },       // Fase 2: vida do Goleirão Bigodão
 };
 
 // ---------------------------------------------------------------
@@ -220,107 +222,119 @@ function atualizarCraque(c, controle, dt, saida) {
 }
 
 // ---------------------------------------------------------------
-// JUIZ APITÃO: o chefão
+// CHEFÕES: cada fase tem um chefão. A ficha diz o nome, a vida e os ataques de cada nível.
 // ---------------------------------------------------------------
-// Quais ataques ele usa em cada fase, e o "peso" (mais peso = aparece mais)
-var ATAQUES_POR_FASE = {
-  1: { amarelo: 3, apitaco: 2, corrida: 2 },
-  2: { amarelo: 2, spray: 2, bandeirinhas: 2, vermelho: 2 },
-  3: { var: 3, chuva: 2, apitacoDuplo: 2, amarelo: 1 },
+var CHEFOES = {
+  1: {
+    tipo: 'juiz', nome: 'JUIZ APITÃO', vida: function () { return AJUSTES.juiz.vida; },
+    // ataques de cada nível, com "peso" (mais peso = aparece mais)
+    ataquesPorNivel: {
+      1: { amarelo: 3, apitaco: 2, corrida: 2 },
+      2: { amarelo: 2, spray: 2, bandeirinhas: 2, vermelho: 2 },
+      3: { var: 3, chuva: 2, apitacoDuplo: 2, amarelo: 1 },
+    },
+  },
 };
 
-// Tempo de aviso (em segundos) antes de cada ataque. Nunca menos que AJUSTES.juiz.avisoMin.
+// Tempo de aviso (em segundos) antes de cada ataque. Nunca menos que AJUSTES.chefe.avisoMin.
 var AVISO_BASE = {
   amarelo: 0.7, apitaco: 0.8, corrida: 0.9, spray: 0.8, bandeirinhas: 0.7,
   vermelho: 0.8, var: 1.0, chuva: 0.7, apitacoDuplo: 0.8,
 };
 
-var ATAQUES = {};   // os ataques de verdade são definidos mais abaixo
-var JUIZ_W = 190, JUIZ_H = 300, JUIZ_X = AJUSTES.largura - JUIZ_W - 30;
+var ATAQUES = {};   // todos os ataques de todos os chefões (definidos mais abaixo)
+var CHEFE_W = 190, CHEFE_H = 300, CHEFE_X = AJUSTES.largura - CHEFE_W - 30;
 
-function criarJuiz(dificuldade, aleatorio) {
-  var vida = AJUSTES.juiz.vida;
+function criarChefe(fase, dificuldade, aleatorio) {
+  var ficha = CHEFOES[fase], vida = ficha.vida();
   return {
-    x: JUIZ_X, y: AJUSTES.chao - JUIZ_H, w: JUIZ_W, h: JUIZ_H,
-    vida: vida, vidaMax: vida, fase: 1, estado: 'entrada', t: 1.2,
-    ataqueAtual: null, ultimoAtaque: null, piscar: 0,
+    tipo: ficha.tipo, fase: fase,
+    x: CHEFE_X, y: AJUSTES.chao - CHEFE_H, w: CHEFE_W, h: CHEFE_H,
+    vida: vida, vidaMax: vida, nivel: 1, estado: 'entrada', t: 1.2,
+    ataqueAtual: null, ultimoAtaque: null, piscar: 0, olhando: -1,
+    correndo: false, defendendo: false,
     dificuldade: dificuldade, aleatorio: aleatorio || Math.random,
   };
 }
 
-// A menor vida que o juiz pode ter nesta fase (abaixo disso, muda de fase)
-function limiteFase(j, fase) {
-  var f = AJUSTES.juiz.fases, tirado = 0;
-  for (var i = 0; i < fase; i++) tirado += f[i];
-  return Math.max(0, Math.round(j.vidaMax * (1 - tirado)));
+// A menor vida que o chefão pode ter neste nível (abaixo disso, muda de nível)
+function limiteNivel(c, nivel) {
+  var f = AJUSTES.chefe.niveis, tirado = 0;
+  for (var i = 0; i < nivel; i++) tirado += f[i];
+  return Math.max(0, Math.round(c.vidaMax * (1 - tirado)));
 }
 
-// Machuca o juiz. Devolve quanto de dano entrou de verdade.
-function ferirJuiz(j, dano) {
-  if (j.estado === 'transicao' || j.estado === 'derrotado') return 0;
-  var limite = limiteFase(j, j.fase);
-  var aplicado = Math.min(dano, j.vida - limite);
-  j.vida -= aplicado;
-  j.piscar = 0.08;
-  if (j.vida <= limite) {
-    if (j.fase < 3) { j.estado = 'transicao'; j.t = AJUSTES.juiz.transicao; }
-    else { j.estado = 'derrotado'; j.t = 0; }
-    j.ataqueAtual = null;
+// Machuca o chefão. Devolve quanto de dano entrou de verdade.
+function ferirChefe(c, dano) {
+  if (c.estado === 'transicao' || c.estado === 'derrotado') return 0;
+  var limite = limiteNivel(c, c.nivel);
+  var aplicado = Math.min(dano, c.vida - limite);
+  c.vida -= aplicado;
+  c.piscar = 0.08;
+  if (c.vida <= limite) {
+    if (c.nivel < 3) { c.estado = 'transicao'; c.t = AJUSTES.chefe.transicao; }
+    else { c.estado = 'derrotado'; c.t = 0; }
+    c.ataqueAtual = null; c.defendendo = false;
   }
   return aplicado;
 }
 
+// Ataques que não podem repetir enquanto o anterior ainda está em campo
+function ataqueAindaEmCampo(nome, jogo) {
+  if (nome === 'bandeirinhas') return jogo.inimigos.some(function (i) { return i.tipo === 'bandeirinha'; });
+  if (nome === 'vermelho') return jogo.perigos.some(function (p) { return p.tipo === 'vermelho'; });
+  return false;
+}
+
 // Sorteia o próximo ataque (com pesos), sem repetir o último.
-// Não chama bandeirinhas nem cartão vermelho se ainda tiver um deles em campo.
-function escolherAtaque(j, jogo) {
-  var opcoes = ATAQUES_POR_FASE[j.fase], total = 0, nome, pode = {};
+function escolherAtaque(c, jogo) {
+  var opcoes = CHEFOES[c.fase].ataquesPorNivel[c.nivel], total = 0, nome, pode = {}, primeiro = null;
   for (nome in opcoes) {
-    var ok = nome !== j.ultimoAtaque;
-    if (jogo && nome === 'bandeirinhas' && jogo.inimigos.length > 0) ok = false;
-    if (jogo && nome === 'vermelho' && jogo.perigos.some(function (p) { return p.tipo === 'vermelho'; })) ok = false;
+    if (!primeiro) primeiro = nome;
+    var ok = nome !== c.ultimoAtaque && !(jogo && ataqueAindaEmCampo(nome, jogo));
     if (ok) { pode[nome] = opcoes[nome]; total += opcoes[nome]; }
   }
-  if (total === 0) { pode = { amarelo: 1 }; total = 1; }
-  var sorteio = j.aleatorio() * total;
+  if (total === 0) { pode = {}; pode[primeiro] = 1; total = 1; }
+  var sorteio = c.aleatorio() * total;
   for (nome in pode) { sorteio -= pode[nome]; if (sorteio < 0) break; }
-  j.ultimoAtaque = nome;
+  c.ultimoAtaque = nome;
   return nome;
 }
 
-function tempoRespiro(j) {
-  return AJUSTES.juiz.respiro[j.fase - 1] * AJUSTES.dificuldades[j.dificuldade].multRespiro;
+function tempoRespiro(c) {
+  return AJUSTES.chefe.respiro[c.nivel - 1] * AJUSTES.dificuldades[c.dificuldade].multRespiro;
 }
 
-function tempoAviso(j, nome) {
-  var mult = AJUSTES.dificuldades[j.dificuldade].multAviso;
-  return Math.max(AJUSTES.juiz.avisoMin, AVISO_BASE[nome] || 0) * mult;
+function tempoAviso(c, nome) {
+  var mult = AJUSTES.dificuldades[c.dificuldade].multAviso;
+  return Math.max(AJUSTES.chefe.avisoMin, AVISO_BASE[nome] || 0) * mult;
 }
 
 // Máquina de estados: entrada → respiro → aviso → ataque → respiro ...
-function atualizarJuiz(j, dt, jogo) {
-  j.piscar = Math.max(0, j.piscar - dt);
-  // se a fase mudou no meio da corrida, ele volta andando para o lugar
-  if ((j.estado === 'transicao' || j.estado === 'derrotado') && j.x !== JUIZ_X) {
-    j.correndo = false;
-    j.x = j.x < JUIZ_X ? Math.min(JUIZ_X, j.x + 500 * dt) : JUIZ_X;
-    j.olhando = j.x === JUIZ_X ? -1 : 1;    // chegou: vira para o Craque de novo
+function atualizarChefe(c, dt, jogo) {
+  c.piscar = Math.max(0, c.piscar - dt);
+  // se o nível mudou no meio de uma corrida, ele volta andando para o lugar
+  if ((c.estado === 'transicao' || c.estado === 'derrotado') && c.x !== CHEFE_X) {
+    c.correndo = false;
+    c.x = c.x < CHEFE_X ? Math.min(CHEFE_X, c.x + 500 * dt) : CHEFE_X;
+    c.olhando = c.x === CHEFE_X ? -1 : 1;    // chegou: vira para o Craque de novo
   }
-  if (j.estado === 'derrotado') return;
-  j.t -= dt;
-  if (j.estado === 'entrada' && j.t <= 0) {
-    j.estado = 'respiro'; j.t = tempoRespiro(j);
-  } else if (j.estado === 'transicao' && j.t <= 0) {
-    j.fase += 1; j.ultimoAtaque = null;
-    j.estado = 'respiro'; j.t = tempoRespiro(j);
-  } else if (j.estado === 'respiro' && j.t <= 0) {
-    j.ataqueAtual = escolherAtaque(j, jogo);
-    j.estado = 'aviso'; j.t = tempoAviso(j, j.ataqueAtual);
-  } else if (j.estado === 'aviso' && j.t <= 0) {
-    j.estado = 'ataque'; j.t = 0;
-    ATAQUES[j.ataqueAtual].iniciar(jogo);
-  } else if (j.estado === 'ataque') {
-    if (ATAQUES[j.ataqueAtual].atualizar(jogo, dt)) {
-      j.estado = 'respiro'; j.t = tempoRespiro(j);
+  if (c.estado === 'derrotado') return;
+  c.t -= dt;
+  if (c.estado === 'entrada' && c.t <= 0) {
+    c.estado = 'respiro'; c.t = tempoRespiro(c);
+  } else if (c.estado === 'transicao' && c.t <= 0) {
+    c.nivel += 1; c.ultimoAtaque = null;
+    c.estado = 'respiro'; c.t = tempoRespiro(c);
+  } else if (c.estado === 'respiro' && c.t <= 0) {
+    c.ataqueAtual = escolherAtaque(c, jogo);
+    c.estado = 'aviso'; c.t = tempoAviso(c, c.ataqueAtual);
+  } else if (c.estado === 'aviso' && c.t <= 0) {
+    c.estado = 'ataque'; c.t = 0;
+    ATAQUES[c.ataqueAtual].iniciar(jogo);
+  } else if (c.estado === 'ataque') {
+    if (ATAQUES[c.ataqueAtual].atualizar(jogo, dt)) {
+      c.estado = 'respiro'; c.t = tempoRespiro(c);
     }
   }
 }
@@ -328,11 +342,12 @@ function atualizarJuiz(j, dt, jogo) {
 // ---------------------------------------------------------------
 // O JOGO: tudo o que existe na partida
 // ---------------------------------------------------------------
-function criarJogo(dificuldade, aleatorio) {
+function criarJogo(dificuldade, aleatorio, fase) {
+  fase = fase || 1;
   return {
-    dificuldade: dificuldade,
+    dificuldade: dificuldade, fase: fase,
     craque: criarCraque(dificuldade),
-    juiz: criarJuiz(dificuldade, aleatorio),
+    chefe: criarChefe(fase, dificuldade, aleatorio),
     chutes: [], perigos: [], inimigos: [],
     eventos: [],          // avisos para o app tocar sons e efeitos
     atk: { t: 0, agenda: [] },  // memória do ataque que está acontecendo
@@ -343,8 +358,8 @@ function criarJogo(dificuldade, aleatorio) {
 // Caixa de colisão do Craque: um pouco menor que o desenho (para ser justo com quem joga)
 function caixaCraque(c) { return { x: c.x + 5, y: c.y + 5, w: c.w - 10, h: c.h - 8 }; }
 
-// Caixa de colisão do juiz. Correndo, ele fica abaixado (dá para pular por cima).
-function caixaJuiz(j) {
+// Caixa de colisão do chefão. Correndo, ele fica abaixado (dá para pular por cima).
+function caixaChefe(j) {
   if (j.correndo) return { x: j.x + 20, y: AJUSTES.chao - 140, w: 150, h: 140 };
   return { x: j.x + 30, y: j.y + 20, w: j.w - 40, h: j.h - 20 };
 }
@@ -355,9 +370,9 @@ function perigoAcerta(p, c) {
   return p.r ? colideCircRet(p, caixa) : colideRetRet(p, caixa);
 }
 
-function velJuiz(jogo) { return AJUSTES.dificuldades[jogo.dificuldade].multVelocidadeJuiz; }
+function velChefe(jogo) { return AJUSTES.dificuldades[jogo.dificuldade].multVelocidadeChefe; }
 function multAvisoDe(jogo) { return AJUSTES.dificuldades[jogo.dificuldade].multAviso; }
-function maoJuiz(j) { return { x: j.x + 10, y: j.y + 120 }; }
+function maoChefe(j) { return { x: j.x + 10, y: j.y + 120 }; }
 function centro(o) { return { x: o.x + o.w / 2, y: o.y + o.h / 2 }; }
 
 // Agenda: "daqui a X segundos, faça tal coisa" (dentro de um ataque)
@@ -376,7 +391,7 @@ function novoCartao(x, y, alvoX, alvoY, vel) {
   return { tipo: 'amarelo', x: x - 13, y: y - 9, w: 26, h: 18, vx: dx / n * vel, vy: dy / n * vel, giro: 0 };
 }
 function novaOnda(jogo) {
-  return { tipo: 'onda', x: jogo.juiz.x - 30, y: AJUSTES.chao - 46, w: 30, h: 46, vx: -430 * velJuiz(jogo), vy: 0 };
+  return { tipo: 'onda', x: jogo.chefe.x - 30, y: AJUSTES.chao - 46, w: 30, h: 46, vx: -430 * velChefe(jogo), vy: 0 };
 }
 // Laser do VAR: alto = agache; baixo = pule
 function novoLaser(alto) {
@@ -389,16 +404,16 @@ function novoLaser(alto) {
 ATAQUES.amarelo = {
   iniciar: function (jogo) {
     comecarAtaque(jogo);
-    var j = jogo.juiz, v = velJuiz(jogo);
+    var j = jogo.chefe, v = velChefe(jogo);
     var lancar = function (angulos, vel) {
-      var m = maoJuiz(j), alvo = centro(jogo.craque);
+      var m = maoChefe(j), alvo = centro(jogo.craque);
       var base = Math.atan2(alvo.y - m.y, alvo.x - m.x);
       angulos.forEach(function (a) {
         jogo.perigos.push(novoCartao(m.x, m.y, m.x + Math.cos(base + a) * 100, m.y + Math.sin(base + a) * 100, vel));
       });
       jogo.eventos.push('lanca');
     };
-    if (j.fase === 1) { [0, 0.3, 0.6].forEach(function (t) { agendar(jogo, t, function () { lancar([0], 380 * v); }); }); }
+    if (j.nivel === 1) { [0, 0.3, 0.6].forEach(function (t) { agendar(jogo, t, function () { lancar([0], 380 * v); }); }); }
     else {
       agendar(jogo, 0, function () { lancar([-0.24, 0, 0.24], 410 * v); });
       agendar(jogo, 0.7, function () { lancar([0], 410 * v); });
@@ -421,13 +436,13 @@ ATAQUES.apitacoDuplo = {
 };
 
 ATAQUES.corrida = {
-  iniciar: function (jogo) { comecarAtaque(jogo); jogo.atk.etapa = 'ida'; jogo.juiz.correndo = true; jogo.juiz.olhando = -1; jogo.eventos.push('apito'); },
+  iniciar: function (jogo) { comecarAtaque(jogo); jogo.atk.etapa = 'ida'; jogo.chefe.correndo = true; jogo.chefe.olhando = -1; jogo.eventos.push('apito'); },
   atualizar: function (jogo, dt) {
-    var j = jogo.juiz, a = jogo.atk, v = 720 * velJuiz(jogo);
+    var j = jogo.chefe, a = jogo.atk, v = 720 * velChefe(jogo);
     rodarAgenda(jogo, dt);
     if (a.etapa === 'ida') { j.x -= v * dt; if (j.x <= 10) { j.x = 10; a.etapa = 'pausa'; a.pausa = 0.35; } }
     else if (a.etapa === 'pausa') { a.pausa -= dt; if (a.pausa <= 0) { a.etapa = 'volta'; j.olhando = 1; } }
-    else { j.x += v * dt; if (j.x >= JUIZ_X) { j.x = JUIZ_X; j.correndo = false; j.olhando = -1; return true; } }
+    else { j.x += v * dt; if (j.x >= CHEFE_X) { j.x = CHEFE_X; j.correndo = false; j.olhando = -1; return true; } }
     return false;
   },
 };
@@ -435,11 +450,11 @@ ATAQUES.corrida = {
 ATAQUES.spray = {
   iniciar: function (jogo) {
     comecarAtaque(jogo);
-    var j = jogo.juiz, xs = [centro(jogo.craque).x - 55];
-    xs.push(40 + j.aleatorio() * (JUIZ_X - 190));
+    var j = jogo.chefe, xs = [centro(jogo.craque).x - 55];
+    xs.push(40 + j.aleatorio() * (CHEFE_X - 190));
     xs.forEach(function (x, k) {
       agendar(jogo, k * 0.15, function () {
-        jogo.perigos.push({ tipo: 'spray', x: limitar(x, 0, JUIZ_X - 95), y: AJUSTES.chao - 14, w: 95, h: 14,
+        jogo.perigos.push({ tipo: 'spray', x: limitar(x, 0, CHEFE_X - 95), y: AJUSTES.chao - 14, w: 95, h: 14,
                            vx: 0, vy: 0, inativo: true, ativarEm: 0.6, tempo: 3.6 });
       });
     });
@@ -453,7 +468,7 @@ ATAQUES.bandeirinhas = {
     comecarAtaque(jogo);
     if (jogo.inimigos.length > 0) return;
     var quantos = AJUSTES.dificuldades[jogo.dificuldade].bandeirinhas;
-    [{ x: 20, lado: 1 }, { x: JUIZ_X - 70, lado: -1 }].slice(0, quantos).forEach(function (b, k) {
+    [{ x: 20, lado: 1 }, { x: CHEFE_X - 70, lado: -1 }].slice(0, quantos).forEach(function (b, k) {
       jogo.inimigos.push({ tipo: 'bandeirinha', x: b.x, y: AJUSTES.chao - 64, w: 36, h: 64, lado: b.lado,
                            vida: 3, t: 1.2 + k * 1.3, levantando: 0, tempo: 6.5, piscar: 0 });
     });
@@ -464,9 +479,9 @@ ATAQUES.bandeirinhas = {
 ATAQUES.vermelho = {
   iniciar: function (jogo) {
     comecarAtaque(jogo);
-    var m = maoJuiz(jogo.juiz);
+    var m = maoChefe(jogo.chefe);
     jogo.perigos.push({ tipo: 'vermelho', x: m.x - 44, y: m.y - 30, w: 44, h: 60, vx: 0, vy: 0,
-                       vida: 4, tempo: 3.6, persegue: 125 * velJuiz(jogo), piscar: 0 });
+                       vida: 4, tempo: 3.6, persegue: 125 * velChefe(jogo), piscar: 0 });
     jogo.eventos.push('lanca');
   },
   atualizar: function (jogo, dt) { return rodarAgenda(jogo, dt) >= 0.6; },
@@ -475,7 +490,7 @@ ATAQUES.vermelho = {
 ATAQUES.var = {
   iniciar: function (jogo) {
     comecarAtaque(jogo);
-    var j = jogo.juiz, aviso = 0.6 * multAvisoDe(jogo), v = velJuiz(jogo);
+    var j = jogo.chefe, aviso = 0.6 * multAvisoDe(jogo), v = velChefe(jogo);
     jogo.atk.tv = true;
     for (var k = 0; k < 2; k++) (function (k) {
       var alto = j.aleatorio() < 0.5;
@@ -499,9 +514,9 @@ ATAQUES.var = {
 ATAQUES.chuva = {
   iniciar: function (jogo) {
     comecarAtaque(jogo);
-    var j = jogo.juiz, aviso = 0.6 * multAvisoDe(jogo), n = 5;
+    var j = jogo.chefe, aviso = 0.6 * multAvisoDe(jogo), n = 5;
     var xs = [centro(jogo.craque).x];
-    for (var i = 0; i < n - 1; i++) xs.push(40 + (i + j.aleatorio()) * (JUIZ_X - 80) / (n - 1));
+    for (var i = 0; i < n - 1; i++) xs.push(40 + (i + j.aleatorio()) * (CHEFE_X - 80) / (n - 1));
     xs.forEach(function (x, k) {
       agendar(jogo, k * 0.22, function () {
         jogo.perigos.push({ tipo: 'sombra', inativo: true, x: x - 16, y: AJUSTES.chao - 6, w: 32, h: 6, vx: 0, vy: 0, tempo: aviso + 0.55 });
@@ -547,7 +562,7 @@ function atualizarPerigos(jogo, dt) {
       b.levantando -= dt;
       if (b.levantando <= 0) {
         var de = { x: b.x + b.w / 2, y: b.y + 8 }, para = centro(c);
-        var ddx = para.x - de.x, ddy = para.y - de.y, nn = Math.hypot(ddx, ddy) || 1, vel = 240 * velJuiz(jogo);
+        var ddx = para.x - de.x, ddy = para.y - de.y, nn = Math.hypot(ddx, ddy) || 1, vel = 240 * velChefe(jogo);
         ps.push({ tipo: 'bola', x: de.x, y: de.y, r: 9, vx: ddx / nn * vel, vy: ddy / nn * vel });
         b.t = 2.6; jogo.eventos.push('lanca');
       }
@@ -562,7 +577,7 @@ function atualizarPerigos(jogo, dt) {
 var NAO_DESTRUTIVEIS = { laser: 1, mira: 1, sombra: 1, spray: 1, onda: 1 };
 
 function atualizarChutes(jogo, dt) {
-  var cs = jogo.chutes, j = jogo.juiz;
+  var cs = jogo.chutes, j = jogo.chefe;
   for (var i = cs.length - 1; i >= 0; i--) {
     var ch = cs[i], remover = false, k;
     ch.x += ch.vx * dt; ch.y += ch.vy * dt;
@@ -592,9 +607,9 @@ function atualizarChutes(jogo, dt) {
       }
     }
 
-    if (!remover && colideCircRet(ch, caixaJuiz(j)) && j.estado !== 'derrotado') {
+    if (!remover && colideCircRet(ch, caixaChefe(j)) && j.estado !== 'derrotado') {
       remover = true;
-      var aplicado = ferirJuiz(j, ch.dano);
+      var aplicado = ferirChefe(j, ch.dano);
       if (aplicado > 0) {
         jogo.eventos.push(ch.especial ? 'acertoEspecial' : 'acerto');
         if (!ch.especial) ganharEspecial(jogo.craque);
@@ -629,22 +644,22 @@ function machucarCraque(jogo) {
 }
 
 function subpasso(jogo, controle) {
-  var c = jogo.craque, j = jogo.juiz;
+  var c = jogo.craque, j = jogo.chefe;
   jogo.tempo += PASSO;
 
   var antes = jogo.chutes.length, especialAntes = c.especial;
   atualizarCraque(c, controle, PASSO, { chutes: jogo.chutes });
   if (jogo.chutes.length > antes) jogo.eventos.push(c.especial < especialAntes ? 'especial' : 'chute');
 
-  atualizarJuiz(j, PASSO, jogo);
+  atualizarChefe(j, PASSO, jogo);
   atualizarPerigos(jogo, PASSO);
   atualizarChutes(jogo, PASSO);
 
-  // Troca de fase: limpa a arena para dar um respiro
+  // Troca de nível: limpa a arena para dar um respiro
   if (j.estado === 'transicao' && !jogo.emTransicao) {
     jogo.emTransicao = true;
     jogo.perigos.length = 0; jogo.inimigos.length = 0; jogo.atk = { t: 0, agenda: [] };
-    jogo.eventos.push('fase');
+    jogo.eventos.push('nivel');
     // intervalo: um golinho de água devolve corações (no Amador)
     var dif = AJUSTES.dificuldades[jogo.dificuldade], max = dif.coracoes;
     if (dif.cura > 0 && c.coracoes < max) { c.coracoes = Math.min(max, c.coracoes + dif.cura); jogo.eventos.push('cura'); }
@@ -658,7 +673,7 @@ function subpasso(jogo, controle) {
     jogo.perigos.forEach(function (p) {
       if (p.driblado !== c.dashId && perigoAcerta(p, c)) { p.driblado = c.dashId; driblou = true; }
     });
-    if (j.driblado !== c.dashId && j.estado !== 'transicao' && colideRetRet(caixaJuiz(j), caixaCraque(c))) { j.driblado = c.dashId; driblou = true; }
+    if (j.driblado !== c.dashId && j.estado !== 'transicao' && colideRetRet(caixaChefe(j), caixaCraque(c))) { j.driblado = c.dashId; driblou = true; }
     if (driblou) {
       jogo.eventos.push('ole');
       for (var g = 0; g < 3; g++) ganharEspecial(c);
@@ -673,8 +688,8 @@ function subpasso(jogo, controle) {
       break;
     }
   }
-  // encostar no juiz machuca (menos na pausa da troca de fase)
-  if (jogo.estado === 'luta' && j.estado !== 'transicao' && colideRetRet(caixaJuiz(j), caixaCraque(c))) machucarCraque(jogo);
+  // encostar no chefão machuca (menos na pausa da troca de nível)
+  if (jogo.estado === 'luta' && j.estado !== 'transicao' && colideRetRet(caixaChefe(j), caixaCraque(c))) machucarCraque(jogo);
 }
 
 // Nota no fim: S (perfeito), A, B ou C
@@ -685,8 +700,8 @@ function notaFinal(jogo) {
   return 'C';
 }
 
-// Quanto da vida do juiz já foi tirada (0 = nada, 1 = tudo)
-function progresso(jogo) { return 1 - jogo.juiz.vida / jogo.juiz.vidaMax; }
+// Quanto da vida do chefão já foi tirada (0 = nada, 1 = tudo)
+function progresso(jogo) { return 1 - jogo.chefe.vida / jogo.chefe.vidaMax; }
 </script>
 <script id="sprites">
 // Artes: pacotes Toon Characters, Particle Pack e Background Elements do Kenney (www.kenney.nl), licença CC0 (domínio público).
@@ -873,7 +888,7 @@ function novoJogo() {
   app.tela = 'luta'; app.fimEm = 0; app.particulas = []; app.popups = []; app.novoRecorde = false; app.dica = null;
   toques.clear();
   app.banner = { texto: 'PRIMEIRO TEMPO!', sub: 'Derrube o Juiz Apitão!', t: 1.8, total: 1.8 };
-  som('fase');
+  som('nivel');
   telaCheia();
 }
 function pausar() {
@@ -948,7 +963,7 @@ var SONS = {
   especial: function () { tom(300, 0.35, 'sawtooth', 0.14, 1500); tom(450, 0.35, 'sine', 0.12, 2000); },
   dano: function () { tom(420, 0.3, 'sawtooth', 0.18, 110); },
   apito: function () { apito(0.45); },
-  fase: function () { apito(0.18); apito(0.18, 0.24); apito(0.5, 0.48); },
+  nivel: function () { apito(0.18); apito(0.18, 0.24); apito(0.5, 0.48); },
   lanca: function () { ruido(0.12, 0.12, 2800); },
   spray: function () { ruido(0.6, 0.12, 5200); },
   mira: function () { tom(1250, 0.08, 'square', 0.07); tom(1250, 0.08, 'square', 0.07, 0, 0.14); },
@@ -975,7 +990,7 @@ function som(nome) {
 // EVENTOS DO JOGO -> sons, efeitos, letreiros
 // =================================================================
 function processarEventos() {
-  var jogo = app.jogo, j = jogo.juiz;
+  var jogo = app.jogo, j = jogo.chefe;
   jogo.eventos.forEach(function (ev) {
     som(ev);
     efeitoEvento(ev, jogo);
@@ -986,13 +1001,13 @@ function processarEventos() {
       for (var i = 0; i < 10; i++) particula(c.x + c.w / 2, c.y + 20, (Math.random() - 0.5) * 300, -Math.random() * 300, '#ffeb3b', 'estrela');
     }
     if (ev === 'acerto' || ev === 'acertoEspecial') {
-      var cx = caixaJuiz(j), n = ev === 'acerto' ? 3 : 24, cy = jogo.craque.y + 30;
+      var cx = caixaChefe(j), n = ev === 'acerto' ? 3 : 24, cy = jogo.craque.y + 30;
       for (var k = 0; k < n; k++) particula(cx.x + 6, limitar(cy + (Math.random() - 0.5) * 60, cx.y, cx.y + cx.h), -Math.random() * 260, (Math.random() - 0.5) * 260, ev === 'acerto' ? '#ffffff' : '#ffc400', 'faisca');
       if (ev === 'acertoEspecial') app.tremor = 0.4;
     }
-    if (ev === 'fase') {
+    if (ev === 'nivel') {
       app.tremor = 0.5;
-      app.banner = j.fase === 1
+      app.banner = j.nivel === 1
         ? { texto: 'SEGUNDO TEMPO!', sub: 'O juiz ficou vermelho de raiva!', t: 1.8, total: 1.8 }
         : { texto: 'PRORROGAÇÃO!', sub: 'Chegou o VAR!', t: 1.8, total: 1.8 };
     }
@@ -1510,7 +1525,7 @@ function poseJuiz(j) {
 
 // Cabeça do juiz (origem no pescoço). Também usada no ícone da barra de vida.
 function cabecaJuiz(pele, j, t, pose, flash) {
-  var fase = j ? j.fase : 1, raiva = fase >= 2 || (pose && pose.raiva);
+  var fase = j ? j.nivel : 1, raiva = fase >= 2 || (pose && pose.raiva);
   var tonto = j && j.estado === 'derrotado';
   parte(JZ.rosto, pele, { sombra: JZ.rostoSombra, linha: 3.5 });
   linha(JZ.papada, 'rgba(120,40,30,0.45)', 2.5);
@@ -1557,7 +1572,7 @@ function cabecaJuiz(pele, j, t, pose, flash) {
 ARTE.juiz = function (j, jogo, t) {
   if (SPR.pronto && !imagemPronta('juiz')) return juizSprite(j, jogo, t);
   var flash = j.piscar > 0 && j.estado !== 'derrotado';
-  var pele = flash ? '#fff3e8' : j.fase === 1 ? '#f6c19b' : j.fase === 2 ? '#f6a084' : '#ff8168';
+  var pele = flash ? '#fff3e8' : j.nivel === 1 ? '#f6c19b' : j.nivel === 2 ? '#f6a084' : '#ff8168';
   var camisa = flash ? '#ffd6e4' : '#ef4f8c';
   var cx = j.x + j.w / 2;
   elipse(cx, CHAO - 1, j.correndo ? 80 : 96, 11, 'rgba(10,30,15,0.35)');
@@ -1878,10 +1893,10 @@ function desenharHUD(jogo, t) {
   }
   if (cheia) texto('ESPECIAL PRONTO!', 30 + seg * 22, 67, 15, '#ffd600', 'left', TINTA);
 
-  var j = jogo.juiz, bx = 300, bw = 360;
+  var j = jogo.chefe, bx = 300, bw = 360;
   ctx.fillStyle = 'rgba(11,18,48,0.78)'; rr(bx - 56, 6, bw + 70, 54, 14); ctx.fill();
-  texto('JUIZ APITÃO', bx, 21, 15, '#ffffff', 'left');
-  texto(['1º TEMPO', '2º TEMPO', 'PRORROGAÇÃO'][j.fase - 1], bx + bw, 21, 14, '#ffd600', 'right');
+  texto(CHEFOES[jogo.fase].nome, bx, 21, 15, '#ffffff', 'left');
+  texto(['1º TEMPO', '2º TEMPO', 'PRORROGAÇÃO'][j.nivel - 1], bx + bw, 21, 14, '#ffd600', 'right');
   parte('M' + (bx + 8) + ',32 L' + (bx + bw - 8) + ',32 C' + (bx + bw - 3) + ',32 ' + (bx + bw) + ',35 ' + (bx + bw) + ',40 C' + (bx + bw) + ',45 ' + (bx + bw - 3) + ',48 ' + (bx + bw - 8) + ',48 L' + (bx + 8) + ',48 C' + (bx + 3) + ',48 ' + bx + ',45 ' + bx + ',40 C' + bx + ',35 ' + (bx + 3) + ',32 ' + (bx + 8) + ',32 Z', '#1d1530', { linha: 2.5 });
   var frac = j.vida / j.vidaMax, larg = Math.max(10, bw * frac);
   var gv = ctx.createLinearGradient(0, 32, 0, 48); gv.addColorStop(0, j.piscar > 0 ? '#ffffff' : '#ff6fa3'); gv.addColorStop(1, j.piscar > 0 ? '#ffe0ec' : '#c2185b');
@@ -1890,14 +1905,14 @@ function desenharHUD(jogo, t) {
   [0.6, 0.25].forEach(function (m) { linha('M' + (bx + bw * m) + ',30 L' + (bx + bw * m) + ',50', '#ffffff', 3); });
   // rostinho do juiz
   if (SPR.pronto) {
-    var qj = SPR.q.juiz[j.fase].idle;
+    var qj = SPR.q.juiz[j.nivel].idle;
     ctx.save(); ctx.beginPath(); ctx.arc(bx - 26, 33, 22, 0, Math.PI * 2); ctx.fillStyle = '#ef4f8c'; ctx.fill(); ctx.clip();
     ctx.drawImage(qj.c, 36, 58, 120, 120, bx - 50, 9, 48, 48);
     ctx.restore();
     ctx.beginPath(); ctx.arc(bx - 26, 33, 22, 0, Math.PI * 2); ctx.lineWidth = 2.5; ctx.strokeStyle = TINTA; ctx.stroke();
   } else {
     ctx.save(); ctx.translate(bx - 28, 54); ctx.scale(0.32, 0.32);
-    cabecaJuiz(j.fase === 1 ? '#f6c19b' : j.fase === 2 ? '#f6a084' : '#ff8168', j, t, null, false);
+    cabecaJuiz(j.nivel === 1 ? '#f6c19b' : j.nivel === 2 ? '#f6a084' : '#ff8168', j, t, null, false);
     ctx.restore();
   }
 }
@@ -2091,7 +2106,7 @@ function quadroJuiz(j) {
   return 'idle';
 }
 function juizSprite(j, jogo, t) {
-  var nome = quadroJuiz(j), q = SPR.q.juiz[j.fase][nome], B = SPR.base.juiz;
+  var nome = quadroJuiz(j), q = SPR.q.juiz[j.nivel][nome], B = SPR.base.juiz;
   var esc = 285 / B.alt, cx = j.x + j.w / 2 - 12, vira = j.olhando || -1;   // o quadro olha para a direita; -1 vira para a esquerda
   if (j.correndo) esc *= 0.95;
   elipse(cx, CHAO - 1, j.correndo ? 90 : 100, 12, 'rgba(10,30,15,0.35)');
@@ -2136,7 +2151,7 @@ function juizSprite(j, jogo, t) {
   var topo = (q.m[5] - B.pe) * esc;
   if (pose.tv) { ctx.setLineDash([10, 7]); linha('M-70,' + (topo - 110) + ' L70,' + (topo - 110) + ' L70,' + (topo - 30) + ' L-70,' + (topo - 30) + ' Z', '#ffffff', 4); ctx.setLineDash([]); }
   if (j.estado === 'transicao') for (var v = 0; v < 3; v++) preencher(oval(-34 + v * 34, topo - 20 - ((t * 60 + v * 15) % 30), 14, 10), 'rgba(236,239,241,0.8)');
-  if (j.fase === 3 && j.estado !== 'derrotado' && !j.correndo) {
+  if (j.nivel === 3 && j.estado !== 'derrotado' && !j.correndo) {
     var gota = (t * 40) % 24;
     parte('M' + (40 * vira) + ',' + (topo + 60 + gota) + ' c-6,8 -4,14 0,14 c4,0 6,-6 0,-14 Z', '#81d4fa', { linha: 1.8 });
   }
@@ -2178,7 +2193,7 @@ function bandeirinhaSprite(b, t) {
 var fxRelogio = 0;
 function efeitosDoQuadro(jogo, dt) {
   if (!SPR.pronto) return;
-  var c = jogo.craque, j = jogo.juiz;
+  var c = jogo.craque, j = jogo.chefe;
   fxRelogio += dt;
   var tique = fxRelogio > 0.08; if (tique) fxRelogio = 0;
   // poeira da corrida e do pouso
@@ -2197,7 +2212,7 @@ function efeitosDoQuadro(jogo, dt) {
 
 function efeitoEvento(ev, jogo) {
   if (!SPR.pronto) return;
-  var c = jogo.craque, j = jogo.juiz, cj = caixaJuiz(j), k;
+  var c = jogo.craque, j = jogo.chefe, cj = caixaChefe(j), k;
   if (ev === 'acerto') {
     var hy = limitar(c.y + 30 + (Math.random() - 0.5) * 30, cj.y + 20, cj.y + cj.h - 10);
     fx('star_06', cj.x + 8, hy, '#ffffff', { vida: 0.2, tam: 46, luz: true });
@@ -2215,7 +2230,7 @@ function efeitoEvento(ev, jogo) {
     app.congelar = 0.07;
   }
   if (ev === 'ole') fx('circle_02', c.x + c.w / 2, c.y + c.h / 2, '#ffe066', { vida: 0.4, tam: 40, cresce: 2, luz: true });
-  if (ev === 'fase') for (k = 0; k < 10; k++) fx('smoke_04', cj.x + Math.random() * cj.w, cj.y + Math.random() * 80, '#eceff1', { vy: -60, vida: 1, tam: 60, cresce: 1, alfa: 0.8 });
+  if (ev === 'nivel') for (k = 0; k < 10; k++) fx('smoke_04', cj.x + Math.random() * cj.w, cj.y + Math.random() * 80, '#eceff1', { vy: -60, vida: 1, tam: 60, cresce: 1, alfa: 0.8 });
   if (ev === 'apito') fx('circle_02', j.x - 10, j.y + 110, '#e0f7fa', { vida: 0.5, tam: 40, cresce: 3, luz: true });
 }
 
@@ -2225,7 +2240,7 @@ function efeitoEvento(ev, jogo) {
 var cenaJogo = null;
 function desenharCena(jogo, t) {
   cenaJogo = jogo;
-  var j = jogo.juiz;
+  var j = jogo.chefe;
   if (jogo.atk && jogo.atk.tv) ARTE.tvVar(t);
   jogo.perigos.forEach(function (p) { if (p.tipo === 'spray' || p.tipo === 'sombra' || p.tipo === 'mira') ARTE.perigo(p, t, jogo); });
   ARTE.juiz(j, jogo, t);
@@ -2245,7 +2260,7 @@ function criarPose() {
   var j = criarJogo('amador', function () { return 0.3; });
   var c = j.craque;
   c.x = 210; c.y = CHAO - 70; c.noChao = true; c.estado = 'parado'; c.recargaChute = AJUSTES.craque.cadenciaChute;
-  j.juiz.estado = 'aviso'; j.juiz.ataqueAtual = 'amarelo';
+  j.chefe.estado = 'aviso'; j.chefe.ataqueAtual = 'amarelo';
   [[330, 0], [450, 0], [570, 0]].forEach(function (b) { j.chutes.push({ x: b[0], y: c.y + 32, vx: 800, vy: 0, r: 8, dano: 0 }); });
   j.perigos.push({ tipo: 'amarelo', x: 600, y: 230, w: 26, h: 18, giro: 0.6 });
   j.perigos.push({ tipo: 'amarelo', x: 520, y: 270, w: 26, h: 18, giro: 2.1 });
@@ -2449,7 +2464,7 @@ function verificarDicas(jogo) {
   var d = app.dicas;
   if (app.dica) return;
   if (!d.chute && jogo.tempo > 0.8) { d.chute = true; app.dica = { botao: 'chute', texto: 'Segure CHUTE para chutar no juiz! (tecla Z)', t: 4.5 }; }
-  else if (!d.drible && d.chute && jogo.juiz.estado === 'aviso') { d.drible = true; app.dica = { botao: 'dash', texto: 'Vem ataque! Aperte DRIBLE para atravessar sem se machucar. (tecla C)', t: 5.5 }; }
+  else if (!d.drible && d.chute && jogo.chefe.estado === 'aviso') { d.drible = true; app.dica = { botao: 'dash', texto: 'Vem ataque! Aperte DRIBLE para atravessar sem se machucar. (tecla C)', t: 5.5 }; }
   else if (!d.especial && jogo.craque.especial >= AJUSTES.craque.segmentosEspecial) { d.especial = true; app.dica = { botao: 'especial', texto: 'Barra ⚡ cheia! Aperte ESPECIAL! (tecla V)', t: 4.5 }; }
 }
 

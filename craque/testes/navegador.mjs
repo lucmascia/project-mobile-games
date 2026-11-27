@@ -77,7 +77,7 @@ try {
   await toque(page, 'pointerdown', 5, C.bot.chute.x, C.bot.chute.y);
   ok(await page.evaluate(() => window.__controle().chute) === true, 'segurar CHUTE liga o chute');
   await espera(1200);
-  ok(await page.evaluate(() => window.__jogo.juiz.vida < window.__jogo.juiz.vidaMax), 'os chutes acertam o juiz');
+  ok(await page.evaluate(() => window.__jogo.chefe.vida < window.__jogo.chefe.vidaMax), 'os chutes acertam o juiz');
   await toque(page, 'pointercancel', 5, C.bot.chute.x, C.bot.chute.y);
   ok(await page.evaluate(() => window.__controle().chute) === false, 'toque cancelado solta o CHUTE');
 
@@ -99,17 +99,17 @@ try {
 
   await espera(1800);
   await page.screenshot({ path: prints + '2-fase1.png' });
-  await page.evaluate(() => { const j = window.__jogo.juiz; j.estado = 'respiro'; ferirJuiz(j, 99999); });
+  await page.evaluate(() => { const j = window.__jogo.chefe; j.estado = 'respiro'; ferirChefe(j, 99999); });
   await espera(400);
   await page.screenshot({ path: prints + '3-troca-fase.png' });
   await espera(3200);
-  ok(await page.evaluate(() => window.__jogo.juiz.fase) === 2, 'chega na fase 2');
+  ok(await page.evaluate(() => window.__jogo.chefe.nivel) === 2, 'chega no nível 2');
   await page.screenshot({ path: prints + '4-fase2.png' });
-  await page.evaluate(() => { const j = window.__jogo.juiz; window.__jogo.craque.coracoes = 99; if (j.estado === 'transicao') j.t = 0; j.estado = 'respiro'; ferirJuiz(j, 99999); });
+  await page.evaluate(() => { const j = window.__jogo.chefe; window.__jogo.craque.coracoes = 99; if (j.estado === 'transicao') j.t = 0; j.estado = 'respiro'; ferirChefe(j, 99999); });
   await espera(2000);
-  await page.evaluate(() => { const j = window.__jogo; j.juiz.estado = 'aviso'; j.juiz.ataqueAtual = 'var'; j.juiz.t = 0; });
+  await page.evaluate(() => { const j = window.__jogo; j.chefe.estado = "aviso"; j.chefe.ataqueAtual = "var"; j.chefe.t = 0; });
   await espera(1300);
-  ok(await page.evaluate(() => window.__jogo.juiz.fase) === 3, 'chega na fase 3');
+  ok(await page.evaluate(() => window.__jogo.chefe.nivel) === 3, 'chega no nível 3');
   await page.screenshot({ path: prints + '5-fase3-var.png' });
 
   await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
@@ -135,7 +135,7 @@ try {
   const denovo = await alvo(page, 'denovo');
   await page.touchscreen.tap(denovo.x, denovo.y);
   await espera(100);
-  ok(await page.evaluate(() => window.__app.tela === 'luta' && window.__jogo.juiz.vida === window.__jogo.juiz.vidaMax), 'Tentar de novo reinicia');
+  ok(await page.evaluate(() => window.__app.tela === 'luta' && window.__jogo.chefe.vida === window.__jogo.chefe.vidaMax), 'Tentar de novo reinicia');
 
   // navegador que não deixa guardar nada (aba anônima)
   const p2 = await abrir(browser, () => {
@@ -145,7 +145,7 @@ try {
   await p2.keyboard.press('Enter');
   await espera(100);
   ok(await p2.evaluate(() => window.__app.tela) === 'luta', 'Enter começa pelo teclado');
-  await p2.evaluate(() => { const j = window.__jogo.juiz; j.fase = 3; j.vida = 2; j.estado = 'respiro'; j.t = 5; });
+  await p2.evaluate(() => { const j = window.__jogo.chefe; j.nivel = 3; j.vida = 2; j.estado = 'respiro'; j.t = 5; });
   await p2.keyboard.down('z');
   await espera(2600);
   await p2.keyboard.up('z');

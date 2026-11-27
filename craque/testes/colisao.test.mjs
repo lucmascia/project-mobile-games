@@ -32,7 +32,7 @@ test('AJUSTES tem a resolução e as dificuldades do design', () => {
   assert.equal(A.dificuldades.amador.coracoes, 5);
   assert.equal(A.dificuldades.profissional.coracoes, 3);
   assert.equal(A.dificuldades.amador.multAviso, 1.5);
-  assert.deepEqual([...A.juiz.fases], [0.40, 0.35, 0.25]);
-  assert.equal(A.juiz.avisoMin, 0.6);
+  assert.deepEqual([...A.chefe.niveis], [0.40, 0.35, 0.25]);
+  assert.equal(A.chefe.avisoMin, 0.6);
   assert.equal(A.craque.segmentosEspecial, 5);
 });
