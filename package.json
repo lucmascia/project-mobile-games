@@ -1,0 +1,9 @@
+{
+  "name": "project-mobile-games",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test craque/testes/*.test.mjs",
+    "test:navegador": "node craque/testes/navegador.mjs"
+  }
+}
