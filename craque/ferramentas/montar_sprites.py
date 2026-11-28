@@ -72,6 +72,16 @@ for n in ['idle', 'show', 'attack0', 'talk', 'interact', 'cheer0', 'cheer1', 'sh
     add('juiz', n, juiz(pose('Male person', n)), 1.0)
 for n in ['idle', 'show']:
     add('bandeirinha', n, bandeirinha(pose('Female person', n)), 0.5)
+# Goleirão Bigodão: renderizado a partir do vetor (ver goleiro_svg.py), em 3x (célula 288×384)
+GOL = os.environ.get('GOLEIRO_PNG')
+if GOL:
+    import re
+    xml = open(TOON + 'Male person/Tilesheet/character_malePerson_sheetHD.xml').read()
+    pos = {m[0]: (int(m[1]), int(m[2])) for m in re.findall(r'name="([^"]+)" x="(\d+)" y="(\d+)"', xml)}
+    gfolha = Image.open(GOL).convert('RGBA'); k = 1.5   # 3x do SVG = 1,5x da folha HD
+    for n in ['idle', 'show', 'attack0', 'kick', 'duck', 'cheer0', 'cheer1', 'hold', 'talk', 'think', 'hit', 'shove']:
+        x, y = pos[n]
+        add('goleiro', n, gfolha.crop((int(x * k), int(y * k), int(x * k) + 288, int(y * k) + 384)), 1.0)
 PART = P + '/particle-pack/x/PNG (Transparent)/'
 for n in ['smoke_04', 'dirt_02', 'star_06', 'spark_01', 'circle_02', 'flame_04', 'fire_01', 'twirl_01', 'slash_03', 'light_01', 'magic_03']:
     add('particula', n, branco(Image.open(PART + n + '.png')), 128 / 512)
