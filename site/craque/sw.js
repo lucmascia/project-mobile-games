@@ -2,7 +2,7 @@
 // Os arquivos vêm do que está guardado e são atualizados em segundo plano:
 // uma versão nova do jogo aparece na segunda vez que ele é aberto depois da mudança.
 // Ao mudar a lista de arquivos, troque o número da VERSAO.
-const VERSAO = 'craque-v3';
+const VERSAO = 'craque-v4';
 const ARQUIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icones/icone-180.png', 'icones/icone-192.png', 'icones/icone-512.png'];
 
 self.addEventListener('install', (evento) => {

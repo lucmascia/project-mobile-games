@@ -73,6 +73,18 @@ try {
   await espera(1000);
   ok(await page.evaluate(() => window.__app.dica && window.__app.dica.botao === 'chute'), 'mostra a dica do CHUTE na primeira luta');
 
+  const cob = await page.evaluate(() => {
+    const t = window.__tela(), C = window.__ctrl(), j = window.__jogo, bots = Object.values(C.bot);
+    const cj = caixaChefe(j.chefe), cr = caixaCraque(j.craque); let n = 0, c = 0;
+    for (let x = cj.x; x <= cj.x + cj.w; x += 4) for (let y = cj.y; y <= cj.y + cj.h; y += 4) {
+      n++; const px = t.OX + x * t.ESC, py = t.OY + y * t.ESC;
+      if (bots.some(b => Math.hypot(px - b.x, py - b.y) < b.r)) c++;
+    }
+    const cx = t.OX + (cr.x + cr.w / 2) * t.ESC, cy = t.OY + (cr.y + cr.h / 2) * t.ESC;
+    return { chefe: c / n, craqueLivre: Math.hypot(cx - C.joy.x, cy - C.joy.y) > C.joy.R };
+  });
+  ok(cob.chefe <= 0.15, 'botões cobrem no máximo 15% do chefão (cobrem ' + Math.round(cob.chefe * 100) + '%)');
+  ok(cob.craqueLivre, 'o Craque não começa embaixo do direcional');
   const C = await page.evaluate(() => window.__ctrl());
   await toque(page, 'pointerdown', 5, C.bot.chute.x, C.bot.chute.y);
   ok(await page.evaluate(() => window.__controle().chute) === true, 'segurar CHUTE liga o chute');

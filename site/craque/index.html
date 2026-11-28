@@ -116,7 +116,7 @@ var CRAQUE_W = 40, CRAQUE_H = 70, CRAQUE_H_AGACHADO = 44;
 
 function criarCraque(dificuldade) {
   return {
-    x: 140, y: AJUSTES.chao - CRAQUE_H, vx: 0, vy: 0, w: CRAQUE_W, h: CRAQUE_H,
+    x: 180, y: AJUSTES.chao - CRAQUE_H, vx: 0, vy: 0, w: CRAQUE_W, h: CRAQUE_H,
     virado: 1, noChao: true, agachado: false,
     coracoes: AJUSTES.dificuldades[dificuldade].coracoes,
     invencivel: 0, dashTempo: 0, dashRecarga: 0, dashDir: 1, recargaChute: 0,
@@ -988,11 +988,20 @@ function medir() {
   W = window.innerWidth; H = window.innerHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
-  ESC = Math.min(W / LARG, H / ALT);
-  OX = (W - LARG * ESC) / 2; OY = (H - ALT * ESC) / 2;
   var cs = getComputedStyle(sonda);
   SEG = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
   montarControles();
+  // A arena abre espaço à direita para os botões não ficarem em cima do chefão:
+  // fica até 12% menor e encosta para a esquerda (em tablets e telas "quadradas" quase nada muda).
+  var cheia = Math.min(W / LARG, H / ALT);
+  var reserva = W - CTRL.esquerdaBotoes;                  // largura ocupada pelos botões, do canto até o botão mais à esquerda
+  var cabe = (W - reserva * 0.9 - SEG.l * 0.5) / LARG;
+  ESC = Math.max(cheia * 0.88, Math.min(cheia, cabe));
+  OX = Math.max(SEG.l * 0.5, (W - reserva * 0.9 - LARG * ESC) / 2);
+  // ...mas sem deixar o Craque começar embaixo do direcional
+  OX = Math.max(OX, CTRL.joy.x + CTRL.joy.R + 6 - 200 * ESC);
+  if (OX + LARG * ESC > W) OX = Math.max(0, W - LARG * ESC);
+  OY = (H - ALT * ESC) / 2;
   fundo = null;
   verificarOrientacao();
 }
@@ -1006,18 +1015,21 @@ function verificarOrientacao() {
 // Controles ficam presos nos cantos da tela (perto dos polegares)
 function montarControles() {
   var u = limitar(Math.min(W, H) / 380, 0.8, 1.5);
-  var R = 58 * u, r = 34 * u, sx = 68 * u, sy = 62 * u;
-  var cx = W - SEG.r - 14 - sx - r, cy = H - SEG.b - 10 - sy - r;
+  var R = 58 * u, r = 31 * u, rg = 40 * u, d = 86 * u;
+  // botões em arco no canto: PULO grande no canto; CHUTE, DRIBLE e ESPECIAL em volta
+  // nos cantos de baixo a câmera do iPhone não atrapalha: usa só parte da margem de segurança
+  var px = W - SEG.r * 0.45 - 12 - rg, py = H - SEG.b - 10 - rg, diag = d * Math.SQRT1_2;
   var rp = 21 * u;
   CTRL = {
     u: u,
-    joy: { x: SEG.l + 22 + R, y: H - SEG.b - 18 - R, R: R },
+    joy: { x: SEG.l * 0.45 + 22 + R, y: H - SEG.b - 18 - R, R: R },
     bot: {
-      pulo:     { x: cx,      y: cy + sy, r: r, nome: 'PULO',     cor: '#2e9e44' },
-      chute:    { x: cx - sx, y: cy,      r: r, nome: 'CHUTE',    cor: '#1e88e5' },
-      dash:     { x: cx + sx, y: cy,      r: r, nome: 'DRIBLE',   cor: '#fb8c00' },
-      especial: { x: cx,      y: cy - sy, r: r, nome: 'ESPECIAL', cor: '#ffc400' },
+      pulo:     { x: px,        y: py,        r: rg, nome: 'PULO',     cor: '#2e9e44' },
+      chute:    { x: px - d,    y: py,        r: r,  nome: 'CHUTE',    cor: '#1e88e5' },
+      dash:     { x: px - diag, y: py - diag, r: r,  nome: 'DRIBLE',   cor: '#fb8c00' },
+      especial: { x: px,        y: py - d,    r: r,  nome: 'ESPECIAL', cor: '#ffc400' },
     },
+    esquerdaBotoes: px - d - r,
     pausa: { x: W - SEG.r - 12 - rp, y: SEG.t + 10 + rp, r: rp },
     som:   { x: W - SEG.r - 12 - rp * 3 - 10, y: SEG.t + 10 + rp, r: rp },
   };
@@ -3255,7 +3267,7 @@ function desenharControles(jogo, t) {
   for (var k in CTRL.bot) {
     var b = CTRL.bot[k], apertado = c[k], apagado = k === 'especial' && !pronto;
     ctx.save(); ctx.translate(b.x, b.y); if (apertado) ctx.scale(0.9, 0.9); ctx.translate(-b.x, -b.y);
-    ctx.globalAlpha = apagado ? 0.35 : apertado ? 0.95 : 0.7;
+    ctx.globalAlpha = apagado ? 0.3 : apertado ? 0.95 : 0.55;
     circulo(b.x, b.y + 4, b.r, 'rgba(0,0,0,0.35)');
     parte(oval(b.x, b.y, b.r, b.r), b.cor, { sombraY: b.y + b.r * 0.35, corSombra: 'rgba(0,0,0,0.2)', brilho: oval(b.x - b.r * 0.25, b.y - b.r * 0.45, b.r * 0.5, b.r * 0.25), linha: 3 });
     ctx.globalAlpha = apagado ? 0.5 : 1;
@@ -3362,6 +3374,7 @@ window.__app = app;
 Object.defineProperty(window, '__jogo', { get: function () { return app.jogo; } });
 window.__controle = lerControle;
 window.__faseLiberada = faseLiberada;
+window.__tela = function () { return { OX: OX, OY: OY, ESC: ESC, W: W, H: H }; };
 window.__hudTexto = function () { return app.jogo ? hudTexto(app.jogo) : ''; };
 window.__ctrl = function () { return CTRL; };
 window.__alvos = function () {
