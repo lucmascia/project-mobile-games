@@ -205,6 +205,40 @@ try {
   await p2.touchscreen.tap(prox2.x, prox2.y); await espera(150);
   ok(await p2.evaluate(() => window.__jogo && window.__jogo.fase === 2 && window.__faseLiberada(2)), 'sem armazenamento, a Fase 2 ainda é liberada');
 
+  // ----- instalar sem passos extras -----
+  // Android/Chrome: o navegador avisa que dá para instalar (beforeinstallprompt) → botão INSTALAR abre a janela oficial
+  const p6 = await abrir(browser);
+  ok(!(await p6.evaluate(() => window.__alvos().some(a => a.nome === 'instalar'))), 'sem aviso do navegador, não mostra INSTALAR');
+  await p6.evaluate(() => {
+    const e = new Event('beforeinstallprompt', { cancelable: true });
+    e.prompt = () => { window.__pediuInstalar = true; return Promise.resolve(); };
+    e.userChoice = Promise.resolve({ outcome: 'accepted' });
+    window.dispatchEvent(e);
+  });
+  await espera(150);
+  const inst = await alvo(p6, 'instalar');
+  await p6.touchscreen.tap(inst.x, inst.y); await espera(200);
+  ok(await p6.evaluate(() => window.__pediuInstalar === true), 'INSTALAR abre a janela de instalação do Android');
+  ok(!(await p6.evaluate(() => window.__alvos().some(a => a.nome === 'instalar'))), 'depois de instalar, o botão some');
+  // iPhone: não existe instalação automática → INSTALAR abre o guia animado
+  const ctxIOS = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+  const p7 = await ctxIOS.newPage();
+  p7.on('pageerror', e => erros.push('pageerror: ' + e.message));
+  await p7.goto(url); await espera(300);
+  const inst2 = await alvo(p7, 'instalar');
+  await p7.touchscreen.tap(inst2.x, inst2.y); await espera(150);
+  ok(await p7.evaluate(() => window.__app.tela) === 'instalarIOS', 'no iPhone, INSTALAR abre o guia de instalação');
+  await p7.screenshot({ path: prints + '13-guia-iphone.png' });
+  const volta = await alvo(p7, 'voltar');
+  await p7.touchscreen.tap(volta.x, volta.y); await espera(100);
+  ok(await p7.evaluate(() => window.__app.tela) === 'inicio', 'VOLTAR sai do guia');
+  // já instalado (aberto pelo ícone): sem botão
+  const ctxApp = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148' });
+  await ctxApp.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { get: () => true }); });
+  const p8 = await ctxApp.newPage(); await p8.goto(url); await espera(300);
+  ok(!(await p8.evaluate(() => window.__alvos().some(a => a.nome === 'instalar'))), 'aberto pelo ícone (já instalado), não mostra INSTALAR');
+  await ctxIOS.close(); await ctxApp.close();
+
   // app instalável: manifesto, ícones e service worker
   const p3 = await abrir(browser);
   const manifesto = await p3.evaluate(async () => (await fetch(document.querySelector('link[rel=manifest]').href)).json());

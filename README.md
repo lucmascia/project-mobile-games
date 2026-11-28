@@ -9,9 +9,9 @@ Jogos para celular feitos em família, publicados como app: abrem por um link, s
 | Craque (Fase 1: Juiz Apitão · Fase 2: Goleirão Bigodão) | https://lucmascia.github.io/project-mobile-games/craque/ |
 
 ## Instalar no celular
-1. Abra o link do jogo no navegador (Safari no iPhone, Chrome no Android).
-2. **iPhone:** botão de compartilhar → **Adicionar à Tela de Início**. **Android:** menu ⋮ → **Instalar app** / **Adicionar à tela inicial**.
-3. Abra pelo ícone. Assim o jogo abre em tela cheia e funciona sem internet.
+1. Abra o link do jogo no navegador (ou aponte a câmera para o QR code da página inicial).
+2. No menu do jogo, toque em **INSTALAR**. **Android:** aparece a janela oficial de instalação. **iPhone:** o jogo mostra os 3 passos (a Apple não deixa sites se instalarem sozinhos).
+3. Abra pelo ícone. Assim o jogo abre em tela cheia e funciona sem internet. Quando o jogo já está instalado, o botão some.
 
 Quando o jogo é atualizado, a versão nova aparece na **segunda vez** que ele é aberto (a primeira baixa a atualização em segundo plano).
 

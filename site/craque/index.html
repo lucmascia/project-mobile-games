@@ -1103,7 +1103,7 @@ cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 window.addEventListener('keydown', function (e) {
   destravarAudio();
   if (e.code === 'Escape' || e.code === 'KeyP') {
-    if (app.tela === 'luta') pausar(); else if (app.tela === 'pausa') continuar(); else if (app.tela === 'ajuda') app.tela = 'inicio';
+    if (app.tela === 'luta') pausar(); else if (app.tela === 'pausa') continuar(); else if (app.tela === 'ajuda' || app.tela === 'instalarIOS') app.tela = 'inicio';
     e.preventDefault(); return;
   }
   if (app.tela !== 'luta' && (e.code === 'Enter' || e.code === 'Space')) {
@@ -1154,6 +1154,32 @@ function continuar() {
   app.tela = 'luta'; app.jogo.pausado = false; toques.clear();
 }
 function irMenu() { app.tela = 'inicio'; app.jogo = null; app.pose = null; toques.clear(); }
+// ---------------------------------------------------------------
+// INSTALAR O JOGO NO CELULAR
+// Android/Chrome: o navegador avisa (beforeinstallprompt) e o botão abre a janela oficial.
+// iPhone: não existe instalação automática, então o botão mostra um guia.
+// ---------------------------------------------------------------
+var instalacao = { evento: null, instalado: false,
+  ios: /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) };
+window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); instalacao.evento = e; });
+window.addEventListener('appinstalled', function () { instalacao.evento = null; instalacao.instalado = true; });
+function jaInstalado() {
+  try {
+    return navigator.standalone === true || window.matchMedia('(display-mode: fullscreen)').matches || window.matchMedia('(display-mode: standalone)').matches;
+  } catch (e) { return false; }
+}
+function podeInstalar() { return !jaInstalado() && !instalacao.instalado && (!!instalacao.evento || instalacao.ios); }
+function instalar() {
+  var e = instalacao.evento;
+  if (e) {
+    instalacao.evento = null;
+    try {
+      e.prompt();
+      Promise.resolve(e.userChoice).then(function (r) { if (r && r.outcome === 'accepted') instalacao.instalado = true; }).catch(function () {});
+    } catch (err) { /* o navegador recusou: tudo bem */ }
+  } else if (instalacao.ios) { app.tela = 'instalarIOS'; app.tGuia = 0; }
+}
+
 function proximaFase() { app.tempoFase1 = app.jogo ? app.jogo.tempo : null; app.fase = 2; app.pose = null; novoJogo(); }
 function escolherFase(f) {
   if (!faseLiberada(f)) { app.avisoMenu = { texto: 'Vença o Juiz Apitão para liberar a Fase 2!', t: 2.2 }; som('dano'); return; }
@@ -3052,7 +3078,11 @@ function telaInicio(t) {
   ctx.save(); ctx.translate(LARG / 2, 302); ctx.scale(pulso, pulso); ctx.translate(-LARG / 2, -302);
   botaoMenu('jogar', 370, 268, 220, 68, 'JOGAR', '#ffc400', novoJogo, { tam: 38, corTexto: '#3e2400', contorno: '#fff59d', principal: true });
   ctx.restore();
-  botaoMenu('ajuda', 395, 352, 170, 42, 'COMO JOGAR', '#1e88e5', function () { app.tela = 'ajuda'; }, { tam: 16 });
+  if (podeInstalar()) {
+    botaoMenu('ajuda', 300, 352, 170, 42, 'COMO JOGAR', '#1e88e5', function () { app.tela = 'ajuda'; }, { tam: 16 });
+    botaoMenu('instalar', 490, 352, 170, 42, '   INSTALAR', '#7cb342', instalar, { tam: 16 });
+    iconeInstalar(512, 373, 0.8);
+  } else botaoMenu('ajuda', 395, 352, 170, 42, 'COMO JOGAR', '#1e88e5', function () { app.tela = 'ajuda'; }, { tam: 16 });
   var rec = lerRecorde(app.dificuldade, app.fase);
   if (rec !== null) texto('Recorde da Fase ' + app.fase + ' neste aparelho: ' + relogio(rec), LARG / 2, 412, 15, '#ffffff', 'center', TINTA, 800);
   if (app.avisoMenu) {
@@ -3102,6 +3132,68 @@ function telaAjuda(t) {
   ctx.restore();
   texto('Teclado: setas · Z chute · X pulo · C drible · V especial · Esc pausa', LARG / 2, 462, 14, '#c5cae9', 'center', null, 700);
   botaoMenu('voltar', 400, 474, 160, 40, 'VOLTAR', '#546e7a', function () { app.tela = 'inicio'; }, { tam: 18, principal: true });
+}
+
+function iconeInstalar(x, y, s) {   // seta para baixo entrando na bandeja
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  linha('M0,-12 L0,6 M-8,-2 L0,7 L8,-2', '#ffffff', 4);
+  linha('M-12,6 L-12,12 L12,12 L12,6', '#ffffff', 4);
+  ctx.restore();
+}
+function iconeCompartilhar(x, y, s) {   // quadrado com seta para cima (como no Safari)
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  linha('M-9,-4 L-14,-4 L-14,18 L14,18 L14,-4 L9,-4', '#1e88e5', 3.5);
+  linha('M0,8 L0,-18 M-7,-11 L0,-18 L7,-11', '#1e88e5', 3.5);
+  ctx.restore();
+}
+function iconeAdicionar(x, y, s) {   // quadrado com +
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  linha(caixaArredondada(-16, -16, 32, 32, 7), '#263238', 3.5);
+  linha('M0,-8 L0,8 M-8,0 L8,0', '#263238', 3.5);
+  ctx.restore();
+}
+var iconeDoJogo = null;
+function telaInstalarIOS(t) {
+  if (!iconeDoJogo) { iconeDoJogo = new Image(); iconeDoJogo.src = 'icones/icone-192.png'; }
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, LARG, ALT);
+  painel(40, 22, 880, 496);
+  texto('INSTALAR NO IPHONE', LARG / 2, 62, 32, '#ffd600', 'center', TINTA);
+  texto('3 passos, só uma vez. Depois é só abrir pelo ícone!', LARG / 2, 98, 17, '#ffffff', 'center', null, 800);
+  var passo = Math.floor(t / 1.6) % 3;   // o passo em destaque vai mudando
+  var cards = [
+    ['Toque em', 'COMPARTILHAR', 'na barra do Safari (em cima ou embaixo da tela)'],
+    ['Escolha', 'ADICIONAR À TELA DE INÍCIO', 'role a lista para baixo se não aparecer'],
+    ['Toque em', 'ADICIONAR', 'e abra o jogo pelo ícone novo'],
+  ];
+  cards.forEach(function (c, i) {
+    var x = 70 + i * 280, y = 120, w = 260, h = 290, ativo = i === passo;
+    var s = ativo ? 1 + Math.sin(t * 6) * 0.03 : 1;
+    ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.scale(s, s); ctx.translate(-x - w / 2, -y - h / 2);
+    parte(caixaArredondada(x, y, w, h, 18), ativo ? '#ffffff' : 'rgba(255,255,255,0.82)', { linha: ativo ? 4 : 0, corLinha: '#ffd600' });
+    parte(oval(x + 34, y + 32, 20, 20), ativo ? '#ffd600' : '#cfd8dc', { linha: 0 });
+    texto(String(i + 1), x + 34, y + 34, 22, TINTA, 'center');
+    var cx = x + w / 2, cy = y + 100;
+    preencher(caixaArredondada(cx - 46, cy - 46, 92, 92, 20), '#eef2f7');
+    if (i === 0) iconeCompartilhar(cx, cy, 1.6);
+    if (i === 1) iconeAdicionar(cx, cy, 1.5);
+    if (i === 2) {
+      if (iconeDoJogo.complete && iconeDoJogo.naturalWidth) { ctx.save(); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(cx - 40, cy - 40, 80, 80, 18) : ctx.rect(cx - 40, cy - 40, 80, 80); ctx.clip(); ctx.drawImage(iconeDoJogo, cx - 40, cy - 40, 80, 80); ctx.restore(); }
+      else iconeAdicionar(cx, cy, 1.5);
+    }
+    texto(c[0], cx, y + 170, 17, '#37474f', 'center', null, 800);
+    var alt1 = textoQuebrado(c[1], cx, y + 196, w - 32, c[1].length > 14 ? 16 : 20, '#1565c0', 900, 'center');
+    ctx.save(); ctx.globalAlpha = 0.85;
+    textoQuebrado(c[2], cx, y + 202 + alt1, w - 40, 13, '#455a64', 700, 'center');
+    ctx.restore();
+    ctx.restore();
+    if (ativo) {   // o dedo fica por cima do ícone
+      ctx.save(); ctx.translate(cx + 18, cy + 4 + Math.abs(Math.sin(t * 5)) * 10);
+      parte('M0,0 C-6,-2 -10,6 -6,12 L4,30 C8,36 22,34 24,26 L26,10 C26,4 18,2 16,8 L14,6 C12,0 4,0 4,6 Z', '#f3c08c', { linha: 2.5 });
+      ctx.restore();
+    }
+  });
+  texto('No Chrome do iPhone: o Compartilhar fica ao lado do endereço.', LARG / 2, 428, 14, '#c5cae9', 'center', null, 700);
+  botaoMenu('voltar', 400, 446, 160, 46, 'VOLTAR', '#546e7a', function () { app.tela = 'inicio'; }, { tam: 18, principal: true });
 }
 
 function telaPausa() {
@@ -3321,11 +3413,11 @@ function desenhar() {
     ctx.fillStyle = 'rgba(7,20,13,0.55)'; ctx.fillRect(-LARG, 0, LARG, ALT); ctx.fillRect(LARG, 0, LARG, ALT);
   }
   app.alvos = [];
-  if (app.tela === 'inicio' || app.tela === 'ajuda') {
+  if (app.tela === 'inicio' || app.tela === 'ajuda' || app.tela === 'instalarIOS') {
     if (!app.pose) app.pose = criarPose();
     desenharCena(app.pose, t);
     emMundo();
-    if (app.tela === 'inicio') telaInicio(t); else telaAjuda(t);
+    if (app.tela === 'inicio') telaInicio(t); else if (app.tela === 'ajuda') telaAjuda(t); else telaInstalarIOS(t);
     return;
   }
   var jogo = app.jogo;
